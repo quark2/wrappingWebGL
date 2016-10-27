@@ -1,0 +1,200 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../webgl-utils.js"></script>
+
+<script type="text/javascript" src = "../gl_warpper.js"></script>
+
+<script language = "javascript">
+var glhMain;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var meshbufCube;
+
+var texCube;
+
+var nTimeLast = 0;
+var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
+
+
+function myCreateMeshes() {
+    meshbufCube = new MeshBufer();
+    
+    // Cube
+    var arrVtxCube = [
+        // Front face
+        -1.0, -1.0,  1.0,
+         1.0, -1.0,  1.0,
+         1.0,  1.0,  1.0,
+        -1.0,  1.0,  1.0,
+
+        // Back face
+        -1.0, -1.0, -1.0,
+        -1.0,  1.0, -1.0,
+         1.0,  1.0, -1.0,
+         1.0, -1.0, -1.0,
+
+        // Top face
+        -1.0,  1.0, -1.0,
+        -1.0,  1.0,  1.0,
+         1.0,  1.0,  1.0,
+         1.0,  1.0, -1.0,
+
+        // Bottom face
+        -1.0, -1.0, -1.0,
+         1.0, -1.0, -1.0,
+         1.0, -1.0,  1.0,
+        -1.0, -1.0,  1.0,
+
+        // Right face
+         1.0, -1.0, -1.0,
+         1.0,  1.0, -1.0,
+         1.0,  1.0,  1.0,
+         1.0, -1.0,  1.0,
+
+        // Left face
+        -1.0, -1.0, -1.0,
+        -1.0, -1.0,  1.0,
+        -1.0,  1.0,  1.0,
+        -1.0,  1.0, -1.0
+    ];
+    
+    var arrIdxCube = [
+        0, 1, 2,      0, 2, 3,    // Front face
+        4, 5, 6,      4, 6, 7,    // Back face
+        8, 9, 10,     8, 10, 11,  // Top face
+        12, 13, 14,   12, 14, 15, // Bottom face
+        16, 17, 18,   16, 18, 19, // Right face
+        20, 21, 22,   20, 22, 23  // Left face
+    ];
+    
+    var arrClrCubePre = [
+        [1.0, 0.0, 0.0, 1.0], // Front face
+        [1.0, 1.0, 0.0, 1.0], // Back face
+        [0.0, 1.0, 0.0, 1.0], // Top face
+        [1.0, 0.5, 0.5, 1.0], // Bottom face
+        [1.0, 0.0, 1.0, 1.0], // Right face
+        [0.0, 0.0, 1.0, 1.0]  // Left face
+    ];
+    
+    var arrClrCube = [];
+    
+    for ( var i in arrClrCubePre ) {
+        for ( var j = 0 ; j < 4 ; j++ ) {
+            arrClrCube = arrClrCube.concat(arrClrCubePre[ i ]);
+        }
+    }
+    
+    var arrTexCube = [
+        // Front face
+		0.0, 0.0,
+		1.0, 0.0,
+		1.0, 1.0,
+		0.0, 1.0,
+
+		// Back face
+		1.0, 0.0,
+		1.0, 1.0,
+		0.0, 1.0,
+		0.0, 0.0,
+
+		// Top face
+		0.0, 1.0,
+		0.0, 0.0,
+		1.0, 0.0,
+		1.0, 1.0,
+
+		// Bottom face
+		1.0, 1.0,
+		0.0, 1.0,
+		0.0, 0.0,
+		1.0, 0.0,
+
+		// Right face
+		1.0, 0.0,
+		1.0, 1.0,
+		0.0, 1.0,
+		0.0, 0.0,
+
+		// Left face
+		0.0, 0.0,
+		1.0, 0.0,
+		1.0, 1.0,
+		0.0, 1.0,
+    ];
+    
+    meshbufCube.insertVertexArray(glhMain, arrVtxCube, 24);
+    meshbufCube.insertIndexArray(glhMain, arrIdxCube, 36);
+    meshbufCube.insertColorArray(glhMain, arrClrCube, 24);
+    meshbufCube.insertTextureArray(glhMain, arrTexCube, 24);
+}
+
+
+function myDrawScene() {
+    var fScale = 1.2 + 0.5 * Math.sin(fScaleFactorCube);
+    
+    glhMain.initDraw();
+    
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 0.1, 100.0, pMatrix);
+    
+    // Cube
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    mat4.rotate(mvMatrix, fAngle1Cube, [1, 1, 1]);
+    mat4.rotate(mvMatrix, fAngle2Cube, [0, 0, 1]);
+    mat4.scale(mvMatrix, [fScale, fScale, fScale]);
+    
+    texCube.bindTexture(glhMain, 0);
+    meshbufCube.drawMesh(glhMain, pMatrix, mvMatrix);
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow = new Date().getTime();
+    
+    if ( nTimeLast != 0) {
+        var nElapsed = nTimeNow - nTimeLast;
+        
+        fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
+        fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
+        fScaleFactorCube += 0.35 * (nElapsed * Math.PI) / 1000.0;
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    requestAnimFrame(myDoTick);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myLaunchGL() {
+    var canvas = document.getElementById("canvasMain");
+    
+    glhMain = new glHeader();
+    glhMain.initGL(canvas);
+    
+    myCreateMeshes();
+    //texCube = new TextureBufer(glhMain, "crate.gif");
+    texCube = new TextureBufer(glhMain, "icon_128.png");
+    
+    myDoTick();
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+</body>
+</html>
+
+
