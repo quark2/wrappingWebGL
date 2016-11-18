@@ -9,39 +9,62 @@
 g_strShaderCodeFrag = 
     "precision mediump float;\n" + 
     "\n" + 
-    "varying vec4 vColor;\n" + 
-    "\n" + 
-    "varying vec2 vTextureCoord;\n" + 
+    "uniform bool u_bTexture;\n" + 
     "uniform sampler2D uSampler;\n" + 
     "\n" + 
-    "uniform bool u_bTexture;\n" + 
+    "varying vec3 vLight;\n" + 
+    "\n" + 
+    "varying vec4 vColor;\n" + 
+    "varying vec2 vTextureCoord;\n" + 
     "\n" + 
     "void main(void) {\n" + 
+    "    vec4 vec4MainClr;\n" + 
+    "    \n" + 
     "    if ( u_bTexture ) {\n" + 
-    "        gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" + 
+    "        vec4MainClr = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" + 
     "    } else {\n" + 
-    "        gl_FragColor = vColor;\n" + 
+    "        vec4MainClr = vColor;\n" + 
     "    }\n" + 
+    "    \n" + 
+    "    gl_FragColor = vec4(vec4MainClr.rgb * vLight, vec4MainClr.a);\n" + 
     "}\n";
 
 g_strShaderCodeVtx = 
-   "attribute vec3 aVertexPosition;\n" + 
-   "attribute vec4 aVertexColor;\n" + 
-   "attribute vec2 aTextureCoord;\n" + 
-   "\n" + 
-   "uniform mat4 uMVMatrix;\n" + 
-   "uniform mat4 uPMatrix;\n" + 
-   "\n" + 
-   "varying vec4 vColor;\n" + 
-   "varying vec2 vTextureCoord;\n" + 
-   "\n" + 
-   "uniform bool u_bTexture;\n" + 
-   "\n" + 
-   "void main(void) {\n" + 
-   "    gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);\n" + 
-   "    vTextureCoord = aTextureCoord;\n" + 
-   "    vColor = aVertexColor;\n" + 
-   "}\n";
+    "attribute vec3 aVertexPosition;\n" + 
+    "attribute vec4 aVertexColor;\n" + 
+    "attribute vec3 aVertexNormal;\n" + 
+    "attribute vec2 aTextureCoord;\n" + 
+    "\n" + 
+    "uniform mat4 uMVMatrix;\n" + 
+    "uniform mat4 uPMatrix;\n" + 
+    "uniform mat3 uNMatrix;\n" + 
+    "\n" + 
+    "uniform vec3 uClrAmb;\n" + 
+    "uniform vec3 uClrDir;\n" + 
+    "uniform vec3 uDirLight;\n" + 
+    "\n" + 
+    "uniform bool u_bLight;\n" + 
+    "uniform bool u_bTexture;\n" + 
+    "\n" + 
+    "varying vec3 vLight;\n" + 
+    "\n" + 
+    "varying vec4 vColor;\n" + 
+    "varying vec2 vTextureCoord;\n" + 
+    "\n" + 
+    "void main(void) {\n" + 
+    "    gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);\n" + 
+    "    \n" + 
+    "    if ( u_bLight ) {\n" + 
+    "        vec3 vec3NorTrans = uNMatrix * aVertexNormal;\n" + 
+    "        float fWeightDir = max(dot(vec3NorTrans, uDirLight), 0.0);\n" + 
+    "        vLight = uClrAmb + uClrDir * fWeightDir;\n" + 
+    "    } else {\n" + 
+    "        vLight = vec3(1.0, 1.0, 1.0);\n" + 
+    "    }\n" + 
+    "    \n" + 
+    "    vColor = aVertexColor;\n" + 
+    "    vTextureCoord = aTextureCoord;\n" + 
+    "}\n";
 
 
 ////////////////////////////////////////////////////////////////
@@ -51,7 +74,9 @@ g_strShaderCodeVtx =
 ////////////////////////////////////////////////////////////////
 
 
-function glHeader() {}
+function glHeader() {
+    this.bOnLight = false;
+}
 
 
 glHeader.prototype.buildShader = function(shader, strCode) {
@@ -90,6 +115,10 @@ glHeader.prototype.initShaders = function() {
         "aVertexPosition");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexPositionAttribute);
     
+    this.shaderProgram.vertexNormalAttribute = this.gl.getAttribLocation(this.shaderProgram, 
+        "aVertexNormal");
+    this.gl.enableVertexAttribArray(this.shaderProgram.vertexNormalAttribute);
+    
     this.shaderProgram.vertexColorAttribute = this.gl.getAttribLocation(this.shaderProgram, 
         "aVertexColor");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexColorAttribute);
@@ -100,8 +129,16 @@ glHeader.prototype.initShaders = function() {
     
     this.shaderProgram.pMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "uPMatrix");
     this.shaderProgram.mvMatrixUniform = this.gl.getUniformLocation(this.shaderProgram, "uMVMatrix");
-    this.shaderProgram.samplerUniform = this.gl.getUniformLocation(this.shaderProgram, "uSampler");
+    this.shaderProgram.nMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "uNMatrix");
+    
+    this.shaderProgram.bLightUniform   = this.gl.getUniformLocation(this.shaderProgram, "u_bLight");
     this.shaderProgram.bTextureUniform = this.gl.getUniformLocation(this.shaderProgram, "u_bTexture");
+    
+    this.shaderProgram.clrAmbUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrAmb");
+    this.shaderProgram.clrDirUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrDir");
+    this.shaderProgram.dirLightUniform = this.gl.getUniformLocation(this.shaderProgram, "uDirLight");
+    
+    this.shaderProgram.samplerUniform  = this.gl.getUniformLocation(this.shaderProgram, "uSampler");
 }
 
 
@@ -141,11 +178,33 @@ glHeader.prototype.enableTextureAttrib = function() {
 glHeader.prototype.setMatrixUniforms = function(matP, matMV) {
     this.gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform,  false, matP);
     this.gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, matMV);
+    
+    var matNor = mat3.create();
+    mat4.toInverseMat3(matMV, matNor);
+    mat3.transpose(matNor);
+    this.gl.uniformMatrix3fv(this.shaderProgram.nMatrixUniform, false, matNor);
 }
 
 
 glHeader.prototype.setModeColorTexture = function(bTexture) {
     this.gl.uniform1i(this.shaderProgram.bTextureUniform, bTexture);
+}
+
+
+glHeader.prototype.isOnLight = function() {
+    return this.bLight;
+}
+
+
+glHeader.prototype.enableLight = function() {
+    this.bLight = true;
+    this.gl.uniform1i(this.shaderProgram.bLightUniform, this.bLight);
+}
+
+
+glHeader.prototype.disableLight = function() {
+    this.bLight = false;
+    this.gl.uniform1i(this.shaderProgram.bLightUniform, this.bLight);
 }
 
 
@@ -161,6 +220,11 @@ glHeader.prototype.getGL = function() {
 
 glHeader.prototype.getVtxPosAttrib = function() {
     return this.shaderProgram.vertexPositionAttribute;
+}
+
+
+glHeader.prototype.getVtxNorAttrib = function() {
+    return this.shaderProgram.vertexNormalAttribute;
 }
 
 
@@ -181,6 +245,21 @@ glHeader.prototype.getViewportWidth = function() {
 
 glHeader.prototype.getViewportHeight = function() {
     return this.gl.viewportHeight;
+}
+
+
+glHeader.prototype.setLightAmbient = function(arrClrAmb) {
+    this.gl.uniform3fv(this.shaderProgram.clrAmbUniform, arrClrAmb);
+}
+
+
+glHeader.prototype.setLightDirectional = function(arrClrDir, arrDirLight) {
+    var vecDirMod = vec3.create();
+    vec3.normalize(arrDirLight, vecDirMod);
+    vec3.scale(vecDirMod, -1);
+    
+    this.gl.uniform3fv(this.shaderProgram.dirLightUniform, vecDirMod);
+    this.gl.uniform3fv(this.shaderProgram.clrDirUniform, arrClrDir);
 }
 
 
@@ -217,8 +296,22 @@ MeshBufer.prototype.insertVertexArray = function(glHeader, arrVtx, nNumVtx) {
     this.vbufPos.itemSize = 3;
     this.vbufPos.numItems = nNumVtx;
     
+    this.vbufNor = gl.createBuffer();
     this.vbufClr = gl.createBuffer();
     this.vbufTex = gl.createBuffer();
+    
+    // For setting dummy data of normal vectors
+    var arrNorDump = new Float32Array(3 * nNumVtx);
+    
+    for ( var i = 0 ; i < 3 * nNumVtx ; i++ ) {
+        arrNorDump[ i ] = 0.0;
+    }
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufNor);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrNorDump), gl.STATIC_DRAW);
+    
+    this.vbufNor.itemSize = 3;
+    this.vbufNor.numItems = nNumVtx;
     
     // For setting dummy data of colors
     var arrClrDump = new Float32Array(4 * nNumVtx);
@@ -263,6 +356,14 @@ MeshBufer.prototype.insertIndexArray = function(glHeader, arrIdx, nNumIdx) {
 }
 
 
+MeshBufer.prototype.insertNormalArray = function(glHeader, arrNormal, nNumNormal) {
+    var gl = glHeader.getGL();
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufNor);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrNormal), gl.STATIC_DRAW);
+}
+
+
 MeshBufer.prototype.insertColorArray = function(glHeader, arrColor, nNumColor) {
     var gl = glHeader.getGL();
     
@@ -289,6 +390,9 @@ MeshBufer.prototype.drawMesh = function(glHeader, matP, matMV) {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufPos);
     gl.vertexAttribPointer(glHeader.getVtxPosAttrib(), this.vbufPos.itemSize, gl.FLOAT, false, 0, 0);
     
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufNor);
+    gl.vertexAttribPointer(glHeader.getVtxNorAttrib(), this.vbufNor.itemSize, gl.FLOAT, false, 0, 0);
+    
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufClr);
     gl.vertexAttribPointer(glHeader.getVtxClrAttrib(), this.vbufClr.itemSize, gl.FLOAT, false, 0, 0);
     
@@ -312,13 +416,12 @@ MeshBufer.prototype.drawMesh = function(glHeader, matP, matMV) {
 
 ////////////////////////////////////////////////////////////////
 // 
-// MeshBuffer : Containing informations about a mesh and 
-//              Drawing the mesh
+// TextureBuffer : Containing informations about texture
 // 
 ////////////////////////////////////////////////////////////////
 
 
-function TextureBufer(glHeader, strFilename) {
+function TextureBuffer(glHeader, strFilename) {
     var gl = glHeader.getGL();
     
     var texCurr= gl.createTexture();
@@ -339,14 +442,14 @@ function TextureBufer(glHeader, strFilename) {
 }
 
 
-TextureBufer.prototype.bindTexture = function(glHeader, nID) {
+TextureBuffer.prototype.bindTexture = function(glHeader, nID) {
     var gl = glHeader.getGL();
     
     switch ( nID ) {
-        case 0: gl.activeTexture(gl.TEXTURE0);break;
-        case 1: gl.activeTexture(gl.TEXTURE1);break;
-        case 2: gl.activeTexture(gl.TEXTURE2);break;
-        case 3: gl.activeTexture(gl.TEXTURE3);break;
+        case 0: gl.activeTexture(gl.TEXTURE0); break;
+        case 1: gl.activeTexture(gl.TEXTURE1); break;
+        case 2: gl.activeTexture(gl.TEXTURE2); break;
+        case 3: gl.activeTexture(gl.TEXTURE3); break;
         default: alert("Invalid texture ID"); return -1;
     }
     
