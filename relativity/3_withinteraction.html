@@ -34,12 +34,10 @@ var fXAngleCamera = 0, fZAngleCamera = 0;
 
 var cameraMatrix = mat4.create();
 
-
 // Momentum is used instead of velocity because of its more convenient range
 var gfMom;
 
 var nTimeLast = 0;
-var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
 
 
 function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
@@ -114,7 +112,7 @@ function myCalcAllTransformation(gfMom) {
     
     // Dumping informations (momentum, velocity, gamma)
     document.getElementById("divDump").innerHTML = 
-        "Momentum = " + gfMom + "<br>Velocity = " + gfVel + "<br>Gamma = " + gfGamma;
+        "Velocity = " + gfVel + "<br>Gamma = " + gfGamma;
 }
 
 
@@ -204,18 +202,23 @@ function handleEventMouseMove(event) {
 
 
 function myMakeAnimation() {
-    var nTimeNow = new Date().getTime();
+    var nTimeNow, nElapsed;
+    
+    var gfVel;
+    
+    nTimeNow = new Date().getTime();
+    nElapsed = 0;
+    
+    gfMom = document.getElementById("inputtextMom").value;
     
     // Calculating some variables with respect to the elapsed time
     if ( nTimeLast != 0) {
-        var nElapsed = nTimeNow - nTimeLast;
+        nElapsed = nTimeNow - nTimeLast;
         
-        fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
-        fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
-        fScaleFactorCube += 0.15 * (nElapsed * Math.PI) / 1000.0;
+        gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
+        // Note that in OpenGL the coordinate is fliped in z-axis
+        vecPosCamera[ 2 ] -= gfVel * nElapsed / 1000.0;
     }
-    
-    gfMom = 12 * 0.5 * ( 1.0 + Math.sin(fScaleFactorCube) ) * 1.0;
     
     nTimeLast = nTimeNow;
 }
@@ -246,6 +249,18 @@ function myLaunchGL() {
     
     myDoTick();
 }
+
+
+function myResetAll() {
+    document.getElementById("inputtextMom").value = 0.0;
+    
+    vecPosCamera[ 0 ] = 0.0;
+    vecPosCamera[ 1 ] = 0.0;
+    vecPosCamera[ 2 ] = 0.0;
+    
+    fXAngleCamera = 0.0;
+    fZAngleCamera = 0.0;
+}
 </script>
 
 </head>
@@ -254,7 +269,11 @@ function myLaunchGL() {
 <canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
 This browser does not suppot HTML5. Upgrade it.
 </canvas>
-<p id = "divDump"></p>
+<br>
+<div>Momentum = <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
+<input type = "button" value = "Reset" onclick = "myResetAll()"></div>
+<div id = "divDump"></div>
+<div id = "divDump2"></div>
 </body>
 </html>
 
