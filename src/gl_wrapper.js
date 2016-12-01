@@ -65,8 +65,7 @@ g_strShaderCodeVtx =
     "        vLight = vec3(1.0, 1.0, 1.0);\n" + 
     "    }\n" + 
     "    \n" + 
-    "    //vColor = ( u_bColored ? aVertexColor : uClrUniform );\n" + 
-    "    vColor = aVertexColor;\n" + 
+    "    vColor = ( u_bColored ? aVertexColor : uClrUniform );\n" + 
     "    vTextureCoord = aTextureCoord;\n" + 
     "}\n";
 
@@ -423,19 +422,12 @@ MeshBuffer.prototype.insertColorArray = function(glHeader, arrColor, nNumColor) 
 
 
 MeshBuffer.prototype.setUniformColor = function(glHeader, arrColor) {
-    var gl = glHeader.getGL();
+    this.clrUniform[ 0 ] = arrColor[ 0 ];
+    this.clrUniform[ 1 ] = arrColor[ 1 ];
+    this.clrUniform[ 2 ] = arrColor[ 2 ];
+    this.clrUniform[ 3 ] = arrColor[ 3 ];
     
-    for ( var i = 0 ; i < this.vbufClr.numItems ; i++ ) {
-        this.arrClr[ 4 * i + 0 ] = arrColor[ 0 ];
-        this.arrClr[ 4 * i + 1 ] = arrColor[ 1 ];
-        this.arrClr[ 4 * i + 2 ] = arrColor[ 2 ];
-        this.arrClr[ 4 * i + 3 ] = arrColor[ 3 ];
-    }
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufClr);
-    gl.bufferData(gl.ARRAY_BUFFER, this.arrClr, gl.STATIC_DRAW);
-    
-    this.bIsColored = true;
+    this.bIsColored = false;
 }
 
 
@@ -473,6 +465,8 @@ MeshBuffer.prototype.drawMesh = function(glHeader, matP, matMV) {
     if ( this.nIsIdxOn != 0 ) {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.vbufIdx);
     }
+    
+    glHeader.setUniformColor(this.clrUniform);
     
     glHeader.setMatrixUniforms(matP, matMV);
     //glHeader.setModeColor(this.bIsColored);
