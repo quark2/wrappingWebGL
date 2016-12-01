@@ -17,7 +17,7 @@ var mvMatrix = mat4.create();
 
 var bOnLight;
 
-var vec3ColorAmb = [0.2, 0.2, 0.2];
+var vec3ColorAmb = [0.4, 0.4, 0.4];
 var vec3ColorDir = [1.0, 1.0, 1.0];
 var vec3DirLight = [-0.25, -0.25, -1.0];
 
@@ -119,6 +119,9 @@ function myCalcAllTransformation(gfMom) {
 function myDrawScene() {
     var i;
     
+    var matNor;
+    var vecDirLightTurned = [0.0, 0.0, 0.0, 0.0];
+    
     // We do Lorentz-transform at here!
     myCalcAllTransformation(gfMom);
     
@@ -129,21 +132,28 @@ function myDrawScene() {
     mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 
         0.1, 32 * 1048576.0, pMatrix);
     
-    // Set the configuration for light
-    if ( bOnLight ) {
-        glhMain.setLightAmbient(vec3ColorAmb);
-        glhMain.setLightDirectional(vec3ColorDir, vec3DirLight);
-        glhMain.enableLight();
-    } else {
-        glhMain.disableLight();
-    }
-    
     // Set matrix for camera
     mat4.identity(mvMatrix);
     //mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
     mat4.rotate(mvMatrix, fXAngleCamera, [1, 0, 0]);
     mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
     //mat4.scale(mvMatrix, [fScale, fScale, fScale]);
+    
+    // Set the configuration for light
+    if ( bOnLight ) {
+        vecDirLightTurned[ 0 ] = vec3DirLight[ 0 ];
+        vecDirLightTurned[ 1 ] = vec3DirLight[ 1 ];
+        vecDirLightTurned[ 2 ] = vec3DirLight[ 2 ];
+        vecDirLightTurned[ 3 ] = 0.0;
+        
+        mat4.multiplyVec4(mvMatrix, vecDirLightTurned, vecDirLightTurned);
+        
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vecDirLightTurned);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
     
     // Draw objects
     for ( i = 0 ; i < arrObjs.length ; i++ ) {
