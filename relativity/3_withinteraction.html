@@ -25,6 +25,16 @@ var vecPosCamera = [0.0, 0.0, 0.0];
 
 var arrObjs = [];
 
+var bIsMouseDown = false;
+
+var nXMousePrev = 0, nYMousePrev = 0;
+
+var fSensible = 0.003;
+var fXAngleCamera = 0, fZAngleCamera = 0;
+
+var cameraMatrix = mat4.create();
+
+
 // Momentum is used instead of velocity because of its more convenient range
 var gfMom;
 
@@ -133,8 +143,8 @@ function myDrawScene() {
     // Set matrix for camera
     mat4.identity(mvMatrix);
     //mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
-    //mat4.rotate(mvMatrix, fAngle1Cube, [1, 1, 1]);
-    //mat4.rotate(mvMatrix, fAngle1Cube, [0, 1, 0]);
+    mat4.rotate(mvMatrix, fXAngleCamera, [1, 0, 0]);
+    mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
     //mat4.scale(mvMatrix, [fScale, fScale, fScale]);
     
     // Draw objects
@@ -142,6 +152,54 @@ function myDrawScene() {
         arrObjs[ i ].renewVertexInfo(glhMain);
         arrObjs[ i ].getBufMesh().drawMesh(glhMain, pMatrix, mvMatrix);
     }
+}
+
+
+function handleEventMouseDown(event) {
+    bIsMouseDown = true;
+    nXMousePrev = event.clientX;
+    nYMousePrev = event.clientY;
+}
+
+
+function handleEventMouseUp(event) {
+    bIsMouseDown = false;
+}
+
+
+function handleEventMouseMove(event) {
+    var nXMouseCurr, nYMouseCurr;
+    
+    if ( !bIsMouseDown ) {
+        nXMouseCurr = nYMouseCurr = 0;
+        
+        return;
+    }
+    
+    nXMouseCurr = event.clientX;
+    nYMouseCurr = event.clientY;
+    
+    fXAngleCamera += ( nYMouseCurr - nYMousePrev ) * fSensible;
+    fZAngleCamera += ( nXMouseCurr - nXMousePrev ) * fSensible;
+    
+    if ( fXAngleCamera < -Math.PI / 2 * 0.95 ) {
+        fXAngleCamera = -Math.PI / 2 * 0.95;
+    }
+    
+    if ( fXAngleCamera >  Math.PI / 2 * 0.95 ) {
+        fXAngleCamera =  Math.PI / 2 * 0.95;
+    }
+    
+    if ( fZAngleCamera < 0 ) {
+        fZAngleCamera += 2 * Math.PI;
+    }
+    
+    if ( fZAngleCamera > 2 * Math.PI ) {
+        fZAngleCamera -= 2 * Math.PI;
+    }
+    
+    nXMousePrev = nXMouseCurr;
+    nYMousePrev = nYMouseCurr;
 }
 
 
@@ -154,7 +212,7 @@ function myMakeAnimation() {
         
         fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
         fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
-        fScaleFactorCube += 0.35 * (nElapsed * Math.PI) / 1000.0;
+        fScaleFactorCube += 0.15 * (nElapsed * Math.PI) / 1000.0;
     }
     
     gfMom = 12 * 0.5 * ( 1.0 + Math.sin(fScaleFactorCube) ) * 1.0;
@@ -171,14 +229,20 @@ function myDoTick() {
 
 
 function myLaunchGL() {
-    var canvas = document.getElementById("canvasMain");
+    var canvasMain = document.getElementById("canvasMain");
+    
+    mat4.identity(cameraMatrix);
     
     glhMain = new glHeader();
-    glhMain.initGL(canvas);
+    glhMain.initGL(canvasMain);
     
     bOnLight = true;
     
     myCreatePolygons();
+    
+    canvasMain.onmousedown = handleEventMouseDown;
+    document.onmouseup = handleEventMouseUp;
+    document.onmousemove = handleEventMouseMove;
     
     myDoTick();
 }
