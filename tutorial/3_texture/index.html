@@ -1,10 +1,10 @@
 <html>
 <head>
 
-<script type="text/javascript" src="../glMatrix-0.9.5.min.js"></script>
-<script type="text/javascript" src="../webgl-utils.js"></script>
+<script type="text/javascript" src="../../src/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../../src/webgl-utils.js"></script>
 
-<script type="text/javascript" src = "../gl_warpper.js"></script>
+<script type="text/javascript" src = "../../src/gl_wrapper.js"></script>
 
 <script language = "javascript">
 var glhMain;
@@ -21,7 +21,7 @@ var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
 
 
 function myCreateMeshes() {
-    meshbufCube = new MeshBufer();
+    meshbufCube = new MeshBuffer();
     
     // Cube
     var arrVtxCube = [
@@ -181,8 +181,8 @@ function myLaunchGL() {
     glhMain.initGL(canvas);
     
     myCreateMeshes();
-    //texCube = new TextureBufer(glhMain, "crate.gif");
-    texCube = new TextureBufer(glhMain, "icon_128.png");
+    //texCube = new TextureBuffer(glhMain, "crate.gif");
+    texCube = new TextureBuffer(glhMain, "icon_128.png");
     
     myDoTick();
 }

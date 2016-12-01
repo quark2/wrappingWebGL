@@ -1,10 +1,10 @@
 <html>
 <head>
 
-<script type="text/javascript" src="../glMatrix-0.9.5.min.js"></script>
-<script type="text/javascript" src="../webgl-utils.js"></script>
+<script type="text/javascript" src="../../src/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../../src/webgl-utils.js"></script>
 
-<script type="text/javascript" src = "../gl_warpper.js"></script>
+<script type="text/javascript" src = "../../src/gl_wrapper.js"></script>
 
 <script language = "javascript">
 var glhMain;
@@ -27,7 +27,7 @@ var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
 
 
 function myCreateMeshes() {
-    meshbufCube = new MeshBufer();
+    meshbufCube = new MeshBuffer();
     
     // Cube
     var arrVtxCube = [
@@ -170,11 +170,14 @@ function myCreateMeshes() {
 		0.0, 1.0,
     ];
     
+    arrColorUniform = [1.0, 0.0, 0.0, 1.0];
+    
     meshbufCube.insertVertexArray(glhMain, arrVtxCube, 24);
     meshbufCube.insertIndexArray(glhMain, arrIdxCube, 36);
     meshbufCube.insertNormalArray(glhMain, arrNorCube, 24);
-    meshbufCube.insertColorArray(glhMain, arrClrCube, 24);
-    meshbufCube.insertTextureArray(glhMain, arrTexCube, 24);
+    //meshbufCube.insertColorArray(glhMain, arrClrCube, 24);
+    //meshbufCube.insertTextureArray(glhMain, arrTexCube, 24);
+    meshbufCube.setUniformColor(glhMain, arrColorUniform);
 }
 
 
@@ -201,7 +204,7 @@ function myDrawScene() {
     mat4.rotate(mvMatrix, fAngle2Cube, [0, 0, 1]);
     mat4.scale(mvMatrix, [fScale, fScale, fScale]);
     
-    texCube.bindTexture(glhMain, 0);
+    //texCube.bindTexture(glhMain, 0);
     meshbufCube.drawMesh(glhMain, pMatrix, mvMatrix);
 }
 

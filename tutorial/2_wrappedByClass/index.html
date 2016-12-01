@@ -1,73 +1,11 @@
 <html>
 <head>
 
-<script type="text/javascript" src="../glMatrix-0.9.5.min.js"></script>
-<script type="text/javascript" src="../webgl-utils.js"></script>
+<script type="text/javascript" src="../../src/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../../src/webgl-utils.js"></script>
 
-<!--script id="shader_fragment" type="x-shader/x-fragment">
-    precision mediump float;
+<script type="text/javascript" src = "../../src/gl_wrapper.js"></script>
 
-    varying vec4 vColor;
-
-    void main(void) {
-        gl_FragColor = vColor;
-    }
-</script>
-
-<script id="shader_vertex" type="x-shader/x-vertex">
-    attribute vec3 aVertexPosition;
-    attribute vec4 aVertexColor;
-
-    uniform mat4 uMVMatrix;
-    uniform mat4 uPMatrix;
-
-    varying vec4 vColor;
-
-    void main(void) {
-        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-        vColor = aVertexColor;
-    }
-</script-->
-<script id="shader_fragment" type="x-shader/x-fragment">
-precision mediump float;
-
-varying vec4 vColor;
-
-varying vec2 vTextureCoord;
-uniform sampler2D uSampler;
-
-uniform bool u_bTexture;
-
-void main(void) {
-    if ( u_bTexture ) {
-        gl_FragColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
-    } else {
-        gl_FragColor = vColor;
-    }
-}
-</script>
-
-<script id="shader_vertex" type="x-shader/x-vertex">
-attribute vec3 aVertexPosition;
-attribute vec4 aVertexColor;
-attribute vec2 aTextureCoord;
-
-uniform mat4 uMVMatrix;
-uniform mat4 uPMatrix;
-
-varying vec4 vColor;
-varying vec2 vTextureCoord;
-
-uniform bool u_bTexture;
-
-void main(void) {
-    gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-    vTextureCoord = aTextureCoord;
-    vColor = aVertexColor;
-}
-</script>
-
-<script type="text/javascript" src = "../gl_warpper.js"></script>
 <script language = "javascript">
 var glhMain;
 
@@ -81,8 +19,8 @@ var fAnglePyramid = 0, fAngleCube = 0;
 
 
 function myCreateMeshes() {
-    meshbufPyramid = new MeshBufer();
-    meshbufCube    = new MeshBufer();
+    meshbufPyramid = new MeshBuffer();
+    meshbufCube    = new MeshBuffer();
     
     // Pyramid
     var arrVtxPyramid = [

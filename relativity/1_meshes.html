@@ -1,0 +1,116 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../src/webgl-utils.js"></script>
+
+<script type="text/javascript" src = "../src/gl_warpper.js"></script>
+
+<script type="text/javascript" src = "relativity_createCube.js"></script>
+
+<script language = "javascript">
+var glhMain;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var bOnLight;
+
+var vec3ColorAmb = [0.2, 0.2, 0.2];
+var vec3ColorDir = [1.0, 1.0, 1.0];
+var vec3DirLight = [-0.25, -0.25, -1.0];
+
+var PolyCube = new myPolygonData();
+
+var nTimeLast = 0;
+var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
+
+
+function myCreateMeshes() {
+    PolyCube.bufMesh = new MeshBuffer();
+    
+    arrColor = [1.0, 0.0, 0.0, 1.0];
+    
+    myBuildRectCuboid(PolyCube, 1.0, 1.0, 1.0, arrColor, 0.05, 0.05, 0.05, 
+	    -3.0, 0.0, -3.0, 1.0)
+    
+    PolyCube.bufMesh.insertVertexArray(glhMain, PolyCube.pgfVtxOrg, PolyCube.nNumVtx);
+    PolyCube.bufMesh.insertIndexArray(glhMain, PolyCube.pgunIdxFace, 3 * PolyCube.nNumFace);
+    PolyCube.bufMesh.insertNormalArray(glhMain, PolyCube.pgfNorOrg, PolyCube.nNumVtx);
+    PolyCube.bufMesh.setUniformColor(glhMain, arrColor);
+}
+
+
+function myDrawScene() {
+    var fScale = 1.2 + 0.5 * Math.sin(fScaleFactorCube);
+    
+    glhMain.initDraw();
+    
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 0.1, 100.0, pMatrix);
+    
+    // Light
+    if ( bOnLight ) {
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vec3DirLight);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
+    
+    // Cube
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    mat4.rotate(mvMatrix, fAngle1Cube, [1, 1, 1]);
+    mat4.rotate(mvMatrix, fAngle2Cube, [0, 0, 1]);
+    mat4.scale(mvMatrix, [fScale, fScale, fScale]);
+    
+    PolyCube.bufMesh.drawMesh(glhMain, pMatrix, mvMatrix);
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow = new Date().getTime();
+    
+    if ( nTimeLast != 0) {
+        var nElapsed = nTimeNow - nTimeLast;
+        
+        fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
+        fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
+        fScaleFactorCube += 0.35 * (nElapsed * Math.PI) / 1000.0;
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    requestAnimFrame(myDoTick);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myLaunchGL() {
+    var canvas = document.getElementById("canvasMain");
+    
+    glhMain = new glHeader();
+    glhMain.initGL(canvas);
+    
+    bOnLight = true;
+    
+    myCreateMeshes();
+    
+    myDoTick();
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+</body>
+</html>
+
+

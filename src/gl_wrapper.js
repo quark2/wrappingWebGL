@@ -39,11 +39,14 @@ g_strShaderCodeVtx =
     "uniform mat4 uPMatrix;\n" + 
     "uniform mat3 uNMatrix;\n" + 
     "\n" + 
+    "uniform vec4 uClrUniform;\n" + 
+    "\n" + 
     "uniform vec3 uClrAmb;\n" + 
     "uniform vec3 uClrDir;\n" + 
     "uniform vec3 uDirLight;\n" + 
     "\n" + 
     "uniform bool u_bLight;\n" + 
+    "uniform bool u_bColored;\n" + 
     "uniform bool u_bTexture;\n" + 
     "\n" + 
     "varying vec3 vLight;\n" + 
@@ -62,6 +65,7 @@ g_strShaderCodeVtx =
     "        vLight = vec3(1.0, 1.0, 1.0);\n" + 
     "    }\n" + 
     "    \n" + 
+    "    //vColor = ( u_bColored ? aVertexColor : uClrUniform );\n" + 
     "    vColor = aVertexColor;\n" + 
     "    vTextureCoord = aTextureCoord;\n" + 
     "}\n";
@@ -132,7 +136,10 @@ glHeader.prototype.initShaders = function() {
     this.shaderProgram.nMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "uNMatrix");
     
     this.shaderProgram.bLightUniform   = this.gl.getUniformLocation(this.shaderProgram, "u_bLight");
+    this.shaderProgram.bColoredUniform = this.gl.getUniformLocation(this.shaderProgram, "u_bColored");
     this.shaderProgram.bTextureUniform = this.gl.getUniformLocation(this.shaderProgram, "u_bTexture");
+    
+    this.shaderProgram.clrUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrUniform");
     
     this.shaderProgram.clrAmbUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrAmb");
     this.shaderProgram.clrDirUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrDir");
@@ -186,8 +193,18 @@ glHeader.prototype.setMatrixUniforms = function(matP, matMV) {
 }
 
 
-glHeader.prototype.setModeColorTexture = function(bTexture) {
+glHeader.prototype.setModeColor = function(bColored) {
+    this.gl.uniform1i(this.shaderProgram.bColoredUniform, bColored);
+}
+
+
+glHeader.prototype.setModeTexture = function(bTexture) {
     this.gl.uniform1i(this.shaderProgram.bTextureUniform, bTexture);
+}
+
+
+glHeader.prototype.setUniformColor = function(arrClrUniform) {
+    this.gl.uniform4fv(this.shaderProgram.clrUniform, arrClrUniform);
 }
 
 
@@ -279,19 +296,23 @@ glHeader.prototype.initDraw = function() {
 ////////////////////////////////////////////////////////////////
 
 
-function MeshBufer(glHeader) {
+function MeshBuffer(glHeader) {
     this.nIsIdxOn = 0;
+    this.bIsColored = false;
     this.bIsTexture = false;
+    
+    this.clrUniform = [1.0, 1.0, 1.0, 1.0];
 }
 
 
-MeshBufer.prototype.insertVertexArray = function(glHeader, arrVtx, nNumVtx) {
+MeshBuffer.prototype.insertVertexArray = function(glHeader, arrVtx, nNumVtx) {
     var gl = glHeader.getGL();
     
     this.vbufPos = gl.createBuffer();
+    this.arrVtx = new Float32Array(arrVtx);
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufPos);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrVtx), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrVtx, gl.STATIC_DRAW);
     
     this.vbufPos.itemSize = 3;
     this.vbufPos.numItems = nNumVtx;
@@ -301,53 +322,72 @@ MeshBufer.prototype.insertVertexArray = function(glHeader, arrVtx, nNumVtx) {
     this.vbufTex = gl.createBuffer();
     
     // For setting dummy data of normal vectors
-    var arrNorDump = new Float32Array(3 * nNumVtx);
+    this.arrNor = new Float32Array(3 * nNumVtx);
     
     for ( var i = 0 ; i < 3 * nNumVtx ; i++ ) {
-        arrNorDump[ i ] = 0.0;
+        this.arrNor[ i ] = 0.0;
     }
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufNor);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrNorDump), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrNor, gl.STATIC_DRAW);
     
     this.vbufNor.itemSize = 3;
     this.vbufNor.numItems = nNumVtx;
     
     // For setting dummy data of colors
-    var arrClrDump = new Float32Array(4 * nNumVtx);
+    this.arrClr = new Float32Array(4 * nNumVtx);
     
     for ( var i = 0 ; i < 4 * nNumVtx ; i++ ) {
-        arrClrDump[ i ] = 1.0;
+        this.arrClr[ i ] = 1.0;
     }
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufClr);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrClrDump), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrClr, gl.STATIC_DRAW);
     
     this.vbufClr.itemSize = 4;
     this.vbufClr.numItems = nNumVtx;
     
     // For setting dummy data of texture mappings
-    var arrTexDump = new Float32Array(2 * nNumVtx);
+    this.arrTex = new Float32Array(2 * nNumVtx);
     
     for ( var i = 0 ; i < 2 * nNumVtx ; i++ ) {
-        arrTexDump[ i ] = 0.0;
+        this.arrTex[ i ] = 0.0;
     }
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufTex);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrTexDump), gl.STATIC_DRAW);
+    //gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrTexDump), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrTex, gl.STATIC_DRAW);
     
     this.vbufTex.itemSize = 2;
     this.vbufTex.numItems = nNumVtx;
 }
 
 
-MeshBufer.prototype.insertIndexArray = function(glHeader, arrIdx, nNumIdx) {
+MeshBuffer.prototype.modifyVertexArray = function(glHeader, arrVtx) {
     var gl = glHeader.getGL();
     
+    for ( var i = 0 ; i < 3 * this.vbufPos.numItems ; i++ ) {
+        this.arrVtx[ i ] = arrVtx[ i ];
+    }
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufPos);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrVtx, gl.STATIC_DRAW);
+}
+
+
+MeshBuffer.prototype.insertIndexArray = function(glHeader, arrIdx, nNumIdx) {
+    var gl = glHeader.getGL();
+    
+    if ( this.nIsIdxOn != 0 ) {
+        gl.deleteBuffer(this.vbufIdx);
+        delete this.arrIdx;
+    }
+    
     this.vbufIdx = gl.createBuffer();
+    this.arrIdx = new Uint16Array(arrIdx);
     
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.vbufIdx);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(arrIdx), gl.STATIC_DRAW);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, this.arrIdx, gl.STATIC_DRAW);
     
     this.vbufIdx.itemSize = 1;
     this.vbufIdx.numItems = nNumIdx;
@@ -356,33 +396,64 @@ MeshBufer.prototype.insertIndexArray = function(glHeader, arrIdx, nNumIdx) {
 }
 
 
-MeshBufer.prototype.insertNormalArray = function(glHeader, arrNormal, nNumNormal) {
+MeshBuffer.prototype.insertNormalArray = function(glHeader, arrNormal, nNumNormal) {
     var gl = glHeader.getGL();
+    
+    for ( var i = 0 ; i < 3 * this.vbufNor.numItems ; i++ ) {
+        this.arrNor[ i ] = arrNormal[ i ];
+    }
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufNor);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrNormal), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrNor, gl.STATIC_DRAW);
 }
 
 
-MeshBufer.prototype.insertColorArray = function(glHeader, arrColor, nNumColor) {
+MeshBuffer.prototype.insertColorArray = function(glHeader, arrColor, nNumColor) {
     var gl = glHeader.getGL();
+    
+    for ( var i = 0 ; i < 4 * this.vbufClr.numItems ; i++ ) {
+        this.arrClr[ i ] = arrColor[ i ];
+    }
     
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufClr);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrColor), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrClr, gl.STATIC_DRAW);
+    
+    this.bIsColored = true;
 }
 
 
-MeshBufer.prototype.insertTextureArray = function(glHeader, arrTexture, nNumTexture) {
+MeshBuffer.prototype.setUniformColor = function(glHeader, arrColor) {
     var gl = glHeader.getGL();
     
+    for ( var i = 0 ; i < this.vbufClr.numItems ; i++ ) {
+        this.arrClr[ 4 * i + 0 ] = arrColor[ 0 ];
+        this.arrClr[ 4 * i + 1 ] = arrColor[ 1 ];
+        this.arrClr[ 4 * i + 2 ] = arrColor[ 2 ];
+        this.arrClr[ 4 * i + 3 ] = arrColor[ 3 ];
+    }
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufClr);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrClr, gl.STATIC_DRAW);
+    
+    this.bIsColored = true;
+}
+
+
+MeshBuffer.prototype.insertTextureArray = function(glHeader, arrTexture, nNumTexture) {
+    var gl = glHeader.getGL();
+    
+    for ( var i = 0 ; i < 2 * this.vbufTex.numItems ; i++ ) {
+        this.arrTex[ i ] = arrTexture[ i ];
+    }
+    
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vbufTex);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arrTexture), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.arrTex, gl.STATIC_DRAW);
     
     this.bIsTexture = true;
 }
 
 
-MeshBufer.prototype.drawMesh = function(glHeader, matP, matMV) {
+MeshBuffer.prototype.drawMesh = function(glHeader, matP, matMV) {
     var gl = glHeader.getGL();
     
     //glHeader.disableAllAttribs();
@@ -404,7 +475,8 @@ MeshBufer.prototype.drawMesh = function(glHeader, matP, matMV) {
     }
     
     glHeader.setMatrixUniforms(matP, matMV);
-    glHeader.setModeColorTexture(this.bIsTexture);
+    //glHeader.setModeColor(this.bIsColored);
+    glHeader.setModeTexture(this.bIsTexture);
     
     if ( this.nIsIdxOn != 0 ) {
         gl.drawElements(gl.TRIANGLES, this.vbufIdx.numItems, gl.UNSIGNED_SHORT, 0);
