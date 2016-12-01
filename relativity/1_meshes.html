@@ -4,7 +4,7 @@
 <script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
 <script type="text/javascript" src="../src/webgl-utils.js"></script>
 
-<script type="text/javascript" src = "../src/gl_warpper.js"></script>
+<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
 
 <script type="text/javascript" src = "relativity_createCube.js"></script>
 
@@ -27,17 +27,20 @@ var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
 
 
 function myCreateMeshes() {
-    PolyCube.bufMesh = new MeshBuffer();
+    var bufMesh = new MeshBuffer();
     
-    arrColor = [1.0, 0.0, 0.0, 1.0];
+    var arrColor = [1.0, 0.0, 0.0, 1.0];
+    var vecPos = [0.0, 0.0, 0.0];
+    var fSize = 1.0;
     
-    myBuildRectCuboid(PolyCube, 1.0, 1.0, 1.0, arrColor, 0.05, 0.05, 0.05, 
-	    -3.0, 0.0, -3.0, 1.0)
+    myBuildRectCuboid(PolyCube, 1.0, 1.0, 1.0, arrColor, 0.05, 0.05, 0.05, vecPos, fSize);
     
-    PolyCube.bufMesh.insertVertexArray(glhMain, PolyCube.pgfVtxOrg, PolyCube.nNumVtx);
-    PolyCube.bufMesh.insertIndexArray(glhMain, PolyCube.pgunIdxFace, 3 * PolyCube.nNumFace);
-    PolyCube.bufMesh.insertNormalArray(glhMain, PolyCube.pgfNorOrg, PolyCube.nNumVtx);
-    PolyCube.bufMesh.setUniformColor(glhMain, arrColor);
+    bufMesh.insertVertexArray(glhMain, PolyCube.getBufVtxOrg(), PolyCube.getNumVtx());
+    bufMesh.insertIndexArray(glhMain, PolyCube.getBufIdx(), 3 * PolyCube.getNumFace());
+    bufMesh.insertNormalArray(glhMain, PolyCube.getBufNorOrg(), PolyCube.getNumVtx());
+    bufMesh.setUniformColor(glhMain, arrColor);
+    
+    PolyCube.setBufMesh(bufMesh);
 }
 
 
@@ -64,7 +67,7 @@ function myDrawScene() {
     mat4.rotate(mvMatrix, fAngle2Cube, [0, 0, 1]);
     mat4.scale(mvMatrix, [fScale, fScale, fScale]);
     
-    PolyCube.bufMesh.drawMesh(glhMain, pMatrix, mvMatrix);
+    PolyCube.getBufMesh().drawMesh(glhMain, pMatrix, mvMatrix);
 }
 
 

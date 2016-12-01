@@ -1,11 +1,151 @@
 function myPolygonData() {
+    this.pgfVtx = null;
+    this.pgfVtxOrg = null;
+    
+    this.pgfNor = null;
+    this.pgfNorOrg = null;
+    
+    this.pgunIdxFace = null;
+    
     this.nNumVtx = 0;
     this.nNumFace = 0;
     
     this.arrgfColor = [1.0, 1.0, 1.0, 1.0];
     
-    this.gfSize = 1.0;
+    this.bufMesh = null;
+    
     this.vecPos = [0.0, 0.0, 0.0];
+    this.gfSize = 1.0;
+}
+
+
+myPolygonData.prototype.renewVertexInfo = function(glHeader) {
+    this.bufMesh.modifyVertexArray(glHeader, this.pgfVtx);
+    this.bufMesh.insertNormalArray(glHeader, this.pgfNor);
+}
+
+
+myPolygonData.prototype.getNumVtx = function() {
+    return this.nNumVtx;
+}
+
+
+myPolygonData.prototype.getNumFace = function() {
+    return this.nNumFace;
+}
+
+
+myPolygonData.prototype.getColor = function(arrColor) {
+    arrColor[ 0 ] = this.arrgfColor[ 0 ];
+    arrColor[ 1 ] = this.arrgfColor[ 1 ];
+    arrColor[ 2 ] = this.arrgfColor[ 2 ];
+    arrColor[ 3 ] = this.arrgfColor[ 3 ];
+    
+    return arrColor;
+}
+
+
+myPolygonData.prototype.getBufVtx = function() {
+    return this.pgfVtx;
+}
+
+
+myPolygonData.prototype.getBufVtxOrg = function() {
+    return this.pgfVtxOrg;
+}
+
+
+myPolygonData.prototype.getBufNor = function() {
+    return this.pgfNor;
+}
+
+
+myPolygonData.prototype.getBufNorOrg = function() {
+    return this.pgfNorOrg;
+}
+
+
+myPolygonData.prototype.getBufIdx = function() {
+    return this.pgunIdxFace;
+}
+
+
+myPolygonData.prototype.getBufMesh = function() {
+    return this.bufMesh;
+}
+
+
+myPolygonData.prototype.getPos = function(vecPos) {
+    vecPos[ 0 ] = this.vecPos[ 0 ];
+    vecPos[ 1 ] = this.vecPos[ 1 ];
+    vecPos[ 2 ] = this.vecPos[ 2 ];
+    
+    return vecPos;
+}
+
+
+myPolygonData.prototype.getSize = function() {
+    return this.gfSize;
+}
+
+
+myPolygonData.prototype.setNumVtx = function(nNumVtx) {
+    this.nNumVtx = nNumVtx;
+}
+
+
+myPolygonData.prototype.setNumFace = function(nNumFace) {
+    this.nNumFace = nNumFace;
+}
+
+
+myPolygonData.prototype.setColor = function(arrColor) {
+    this.arrgfColor[ 0 ] = arrColor[ 0 ];
+    this.arrgfColor[ 1 ] = arrColor[ 1 ];
+    this.arrgfColor[ 2 ] = arrColor[ 2 ];
+    this.arrgfColor[ 3 ] = arrColor[ 3 ];
+}
+
+
+myPolygonData.prototype.setBufVtx = function(arrVtx) {
+    this.pgfVtx = arrVtx;
+}
+
+
+myPolygonData.prototype.setBufVtxOrg = function(arrVtx) {
+    this.pgfVtxOrg = arrVtx;
+}
+
+
+myPolygonData.prototype.setBufNor = function(arrNor) {
+    this.pgfNor = arrNor;
+}
+
+
+myPolygonData.prototype.setBufNorOrg = function(arrNor) {
+    this.pgfNorOrg = arrNor;
+}
+
+
+myPolygonData.prototype.setBufIdx = function(arrIdx) {
+    this.pgunIdxFace = arrIdx;
+}
+
+
+myPolygonData.prototype.setBufMesh = function(bufMesh) {
+    this.bufMesh = bufMesh;
+}
+
+
+myPolygonData.prototype.setPos = function(vecPos) {
+    this.vecPos[ 0 ] = vecPos[ 0 ];
+    this.vecPos[ 1 ] = vecPos[ 1 ];
+    this.vecPos[ 2 ] = vecPos[ 2 ];
+}
+
+
+myPolygonData.prototype.setSize = function(gfSize) {
+    this.gfSize = gfSize;
 }
 
 
@@ -13,12 +153,18 @@ function myAddVFCuboidFace(pPoly, arrnIdx, nDivA, nDivB, gfXInit, gfYInit, gfZIn
                            gfAddAX, gfAddAY, gfAddAZ, gfAddBX, gfAddBY, gfAddBZ)
 {
 	var i, j;
+    
+    var arrVtxOrg, arrNorOrg, arrIdx;
 	
 	var gfXCurr, gfYCurr, gfZCurr;
 	var gfNX, gfNY, gfNZ, gfNormN;
     
 	var nIdxBufV, nIdxBufN, nIdxBufF;
     var nIdxV, nIdxF;
+    
+    arrVtxOrg = pPoly.getBufVtxOrg();
+    arrNorOrg = pPoly.getBufNorOrg();
+    arrIdx = pPoly.getBufIdx();
     
     nIdxV = arrnIdx[ 0 ];
     nIdxF = arrnIdx[ 1 ];
@@ -59,13 +205,13 @@ function myAddVFCuboidFace(pPoly, arrnIdx, nDivA, nDivB, gfXInit, gfYInit, gfZIn
 			// structure of pgfVtx : 
 			// (( nx, ny, nz, vx, vy, vz ), ...) (6 ents)
 			
-			pPoly.pgfVtxOrg[ nIdxBufV + 0 ] = gfXCurr;
-			pPoly.pgfVtxOrg[ nIdxBufV + 1 ] = gfYCurr;
-			pPoly.pgfVtxOrg[ nIdxBufV + 2 ] = gfZCurr;
+			arrVtxOrg[ nIdxBufV + 0 ] = gfXCurr;
+			arrVtxOrg[ nIdxBufV + 1 ] = gfYCurr;
+			arrVtxOrg[ nIdxBufV + 2 ] = gfZCurr;
 			
-			pPoly.pgfNorOrg[ nIdxBufN + 0 ] = gfNX;
-			pPoly.pgfNorOrg[ nIdxBufN + 1 ] = gfNY;
-			pPoly.pgfNorOrg[ nIdxBufN + 2 ] = gfNZ;
+			arrNorOrg[ nIdxBufN + 0 ] = gfNX;
+			arrNorOrg[ nIdxBufN + 1 ] = gfNY;
+			arrNorOrg[ nIdxBufN + 2 ] = gfNZ;
 			
 			gfXCurr += gfAddAX;
 			gfYCurr += gfAddAY;
@@ -83,12 +229,12 @@ function myAddVFCuboidFace(pPoly, arrnIdx, nDivA, nDivB, gfXInit, gfYInit, gfZIn
 			nIdxBufV = nIdxV + ( nDivA + 1 ) * i + j;
 			nIdxBufF = 3 * ( nIdxF + 2 * ( nDivA * i + j ) );
 			
-			pPoly.pgunIdxFace[ nIdxBufF + 0 ] = nIdxBufV + 0;
-			pPoly.pgunIdxFace[ nIdxBufF + 1 ] = nIdxBufV + 1;
-			pPoly.pgunIdxFace[ nIdxBufF + 2 ] = nIdxBufV + ( nDivA + 1 );
-			pPoly.pgunIdxFace[ nIdxBufF + 3 ] = nIdxBufV + ( nDivA + 1 ) + 1;
-			pPoly.pgunIdxFace[ nIdxBufF + 4 ] = nIdxBufV + ( nDivA + 1 );
-			pPoly.pgunIdxFace[ nIdxBufF + 5 ] = nIdxBufV + 1;
+			arrIdx[ nIdxBufF + 0 ] = nIdxBufV + 0;
+			arrIdx[ nIdxBufF + 1 ] = nIdxBufV + 1;
+			arrIdx[ nIdxBufF + 2 ] = nIdxBufV + ( nDivA + 1 );
+			arrIdx[ nIdxBufF + 3 ] = nIdxBufV + ( nDivA + 1 ) + 1;
+			arrIdx[ nIdxBufF + 4 ] = nIdxBufV + ( nDivA + 1 );
+			arrIdx[ nIdxBufF + 5 ] = nIdxBufV + 1;
 		}
 	}
 	
@@ -101,12 +247,13 @@ function myAddVFCuboidFace(pPoly, arrnIdx, nDivA, nDivB, gfXInit, gfYInit, gfZIn
 
 
 // Building a mesh of cuboid which is divided into (gfX / gfPX) pieces 
-// on x-direction, and so are gfPY, gfPZ, at (gfPosX, gfPosY, gfPosZ) with size gfSize
-function myBuildRectCuboid(pPoly, gfX, gfY, gfZ, arrfColor, 
-                           gfPX, gfPY, gfPZ, gfPosX, gfPosY, gfPosZ, gfSize)
+// on x-direction, and so are gfPY, gfPZ, at (vecPos) with size gfSize
+function myBuildRectCuboid(pPoly, gfX, gfY, gfZ, arrfColor, gfPX, gfPY, gfPZ, vecPos, gfSize)
 {
 	var gfLatX, gfLatY, gfLatZ;
 	var nDivX, nDivY, nDivZ;
+    
+    var nNumVtx, nNumFace;
     var arrnIdx = [0, 0];
 	
 	nDivX = Math.floor( gfX / gfPX );
@@ -116,20 +263,23 @@ function myBuildRectCuboid(pPoly, gfX, gfY, gfZ, arrfColor,
 	gfLatX = gfX / nDivX;
 	gfLatY = gfY / nDivY;
 	gfLatZ = gfZ / nDivZ;
-	
+    
 	// Setting the number of vertices, edges, and faces
 	// and the size of data
-	pPoly.nNumVtx = 2 * ( ( nDivX + 1 ) * ( nDivY + 1 ) + 
+    nNumVtx = 2 * ( ( nDivX + 1 ) * ( nDivY + 1 ) + 
 		( nDivY + 1 ) * ( nDivZ + 1 ) + ( nDivZ + 1 ) * ( nDivX + 1 ) );
-	pPoly.nNumFace = 2 * 2 * ( nDivX * nDivY + nDivY * nDivZ + nDivZ * nDivX );
+    nNumFace = 2 * 2 * ( nDivX * nDivY + nDivY * nDivZ + nDivZ * nDivX );
+	
+	pPoly.setNumVtx(nNumVtx);
+	pPoly.setNumFace(nNumFace);
     
-	pPoly.pgfVtx = new Array(3 * pPoly.nNumVtx);
-	pPoly.pgfVtxOrg = new Array(3 * pPoly.nNumVtx);
+	pPoly.setBufVtx(new Array(3 * nNumVtx));
+	pPoly.setBufVtxOrg(new Array(3 * nNumVtx));
     
-	pPoly.pgfNor = new Array(3 * pPoly.nNumVtx);
-	pPoly.pgfNorOrg = new Array(3 * pPoly.nNumVtx);
+	pPoly.setBufNor(new Array(3 * nNumVtx));
+	pPoly.setBufNorOrg(new Array(3 * nNumVtx));
     
-	pPoly.pgunIdxFace = new Array(3 * pPoly.nNumFace);
+	pPoly.setBufIdx(new Array(3 * nNumFace));
 	
 	//
 	//              2----------3
@@ -174,16 +324,11 @@ function myBuildRectCuboid(pPoly, gfX, gfY, gfZ, arrfColor,
 		-gfX / 2.0, -gfY / 2.0, -gfZ / 2.0, gfLatX, 0, 0, 0, 0, gfLatZ);
 	
 	// Setting the color
-	pPoly.arrgfColor[ 0 ] = arrfColor[ 0 ];
-	pPoly.arrgfColor[ 1 ] = arrfColor[ 1 ];
-	pPoly.arrgfColor[ 2 ] = arrfColor[ 2 ];
-	pPoly.arrgfColor[ 3 ] = arrfColor[ 3 ];
+    pPoly.setColor(arrfColor);
 	
 	// Setting the position and size
-	pPoly.vecPos[ 0 ] = gfPosX;
-	pPoly.vecPos[ 1 ] = gfPosY;
-	pPoly.vecPos[ 2 ] = gfPosZ;
-	pPoly.gfSize = gfSize;
+    pPoly.setPos(vecPos);
+	pPoly.setSize(gfSize);
 	
 	return 0;
 }

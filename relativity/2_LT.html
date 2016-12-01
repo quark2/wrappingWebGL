@@ -1,0 +1,192 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="../src/webgl-utils.js"></script>
+
+<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
+
+<script type="text/javascript" src = "relativity_createCube.js"></script>
+<script type="text/javascript" src = "relativity_transformation.js"></script>
+
+<script language = "javascript">
+var glhMain;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var bOnLight;
+
+var vec3ColorAmb = [0.2, 0.2, 0.2];
+var vec3ColorDir = [1.0, 1.0, 1.0];
+var vec3DirLight = [-0.25, -0.25, -1.0];
+
+var vecPosCamera = [0.0, 0.0, 0.0];
+
+var arrObjs = [];
+
+// Momentum is used instead of velocity because of its more convenient range
+var gfMom;
+
+var nTimeLast = 0;
+var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
+
+
+function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
+    var bufMesh = new MeshBuffer();
+    
+    myBuildRectCuboid(pPoly, 1.0, 1.0, 1.0, arrColor, 0.05, 0.05, 0.05, vecPos, fSize)
+    
+    bufMesh.insertVertexArray(glhMain, pPoly.getBufVtxOrg(), pPoly.getNumVtx());
+    bufMesh.insertIndexArray(glhMain, pPoly.getBufIdx(), 3 * pPoly.getNumFace());
+    bufMesh.insertNormalArray(glhMain, pPoly.getBufNorOrg(), pPoly.getNumVtx());
+    bufMesh.setUniformColor(glhMain, arrColor);
+    
+    pPoly.setBufMesh(bufMesh);
+}
+
+
+// Creating meshes
+function myCreatePolygons() {
+    var i;
+    
+    var pPoly;
+    
+    var arrColor = [1.0, 1.0, 1.0, 1.0];
+    var vecPos = [0.0, 0.0, 0.0];
+    var fSize = 1.0;
+    
+    for ( i = -3 ; i < 50 ; i++ ) {
+        arrColor[ 0 ] = arrColor[ 1 ] = arrColor[ 2 ] = 0.0;
+        
+        if ( i % 3 == 0 ) {
+            arrColor[ 0 ] = 1.0;
+        } else if ( i % 3 == 1 ) {
+            arrColor[ 1 ] = 1.0;
+        } else {
+            arrColor[ 2 ] = 1.0;
+        }
+        
+        vecPos[ 0 ] = -3.0;
+        vecPos[ 1 ] = 0.0;
+        vecPos[ 2 ] = -3.0 * i;
+        
+        pPoly = new myPolygonData();
+        myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor);
+        arrObjs.push(pPoly);
+        
+        vecPos[ 0 ] = 3.0;
+        vecPos[ 1 ] = 0.0;
+        vecPos[ 2 ] = -3.0 * i;
+        
+        pPoly = new myPolygonData();
+        myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor);
+        arrObjs.push(pPoly);
+    }
+    
+    return 0;
+}
+
+
+// Running the calculation of Lorentz transformations for all objects
+function myCalcAllTransformation(gfMom) {
+    var i;
+    
+    var gfVel, gfGamma;
+    
+    // Calculating velocity (divided by c) and gamma from momentum ( / mass)
+    gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
+    gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
+    
+    for ( i = 0 ; i < arrObjs.length ; i++ ) {
+        myApplyLorentzTransformation(arrObjs[ i ], vecPosCamera, gfVel, gfGamma);
+    }
+}
+
+
+function myDrawScene() {
+    var i;
+    
+    // We do Lorentz-transform at here!
+    myCalcAllTransformation(gfMom);
+    
+    glhMain.initDraw();
+    
+    // Set the perspective matrix
+    // The far plane is set so far to show stars which are far and far away
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 
+        0.1, 32 * 1048576.0, pMatrix);
+    
+    // Set the configuration for light
+    if ( bOnLight ) {
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vec3DirLight);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
+    
+    // Set matrix for camera
+    mat4.identity(mvMatrix);
+    //mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    //mat4.rotate(mvMatrix, fAngle1Cube, [1, 1, 1]);
+    //mat4.rotate(mvMatrix, fAngle1Cube, [0, 1, 0]);
+    //mat4.scale(mvMatrix, [fScale, fScale, fScale]);
+    
+    // Draw objects
+    for ( i = 0 ; i < arrObjs.length ; i++ ) {
+        arrObjs[ i ].renewVertexInfo(glhMain);
+        arrObjs[ i ].getBufMesh().drawMesh(glhMain, pMatrix, mvMatrix);
+    }
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow = new Date().getTime();
+    
+    // Calculating some variables with respect to the elapsed time
+    if ( nTimeLast != 0) {
+        var nElapsed = nTimeNow - nTimeLast;
+        
+        fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
+        fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
+        fScaleFactorCube += 0.35 * (nElapsed * Math.PI) / 1000.0;
+    }
+    
+    gfMom = 12 * 0.5 * ( 1.0 + Math.sin(fScaleFactorCube) ) * 1.0;
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    requestAnimFrame(myDoTick);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myLaunchGL() {
+    var canvas = document.getElementById("canvasMain");
+    
+    glhMain = new glHeader();
+    glhMain.initGL(canvas);
+    
+    bOnLight = true;
+    
+    myCreatePolygons();
+    
+    myDoTick();
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+</body>
+</html>
+
+
