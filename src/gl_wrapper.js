@@ -469,7 +469,7 @@ MeshBuffer.prototype.drawMesh = function(glHeader, matP, matMV) {
     glHeader.setUniformColor(this.clrUniform);
     
     glHeader.setMatrixUniforms(matP, matMV);
-    //glHeader.setModeColor(this.bIsColored);
+    glHeader.setModeColor(this.bIsColored);
     glHeader.setModeTexture(this.bIsTexture);
     
     if ( this.nIsIdxOn != 0 ) {

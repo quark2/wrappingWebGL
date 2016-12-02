@@ -2,7 +2,6 @@
 <head>
 
 <script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
-<script type="text/javascript" src="../src/webgl-utils.js"></script>
 
 <script type="text/javascript" src = "../src/gl_wrapper.js"></script>
 
@@ -164,7 +163,7 @@ function myMakeAnimation() {
 
 
 function myDoTick() {
-    requestAnimFrame(myDoTick);
+    window.setTimeout(myDoTick, 1000 / 60);
     myDrawScene();
     myMakeAnimation();
 }

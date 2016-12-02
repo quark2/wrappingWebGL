@@ -2,7 +2,6 @@
 <head>
 
 <script type="text/javascript" src="../../src/glMatrix-0.9.5.min.js"></script>
-<script type="text/javascript" src="../../src/webgl-utils.js"></script>
 
 <script id="shader-fs" type="x-shader/x-fragment">
     precision mediump float;
@@ -361,7 +360,7 @@ function DoAnimate() {
 
 
 function DoTick() {
-    requestAnimFrame(DoTick);
+    window.setTimeout(DoTick, 1000 / 60);
     drawScene();
     DoAnimate();
 }
