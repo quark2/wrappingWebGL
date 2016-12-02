@@ -1,0 +1,407 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+
+<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
+
+<script type="text/javascript" src = "relativity_createCube.js"></script>
+<script type="text/javascript" src = "relativity_transformation.js"></script>
+
+<script language = "javascript">
+var glhMain;
+
+var fFFar = 32 * 1048576.0;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var bOnLight;
+
+var vec3ColorAmb = [0.4, 0.4, 0.4];
+var vec3ColorDir = [1.0, 1.0, 1.0];
+var vec3DirLight = [-0.25, -0.25, -1.0];
+
+var vecPosCamera = [0.0, 0.0, 0.0];
+
+var arrObjs = [];
+var arrStars = [];
+
+var bufMeshStar;
+var arrVtxStar;
+
+var bIsMouseDown = false;
+
+var nXMousePrev = 0, nYMousePrev = 0;
+
+var fSensible = 0.003;
+var fXAngleCamera = 0, fZAngleCamera = 0;
+
+var cameraMatrix = mat4.create();
+
+// Momentum is used instead of velocity because of its more convenient range
+var gfMom;
+
+var nTimeLast = 0;
+
+
+function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
+    var bufMesh = new MeshBuffer();
+    
+    myBuildRectCuboid(pPoly, 1.0, 1.0, 1.0, arrColor, 0.1, 0.1, 0.1, vecPos, fSize)
+    
+    bufMesh.insertVertexArray(glhMain, pPoly.getBufVtxOrg(), pPoly.getNumVtx());
+    bufMesh.insertIndexArray(glhMain, pPoly.getBufIdx(), 3 * pPoly.getNumFace());
+    bufMesh.insertNormalArray(glhMain, pPoly.getBufNorOrg(), pPoly.getNumVtx());
+    bufMesh.setUniformColor(glhMain, arrColor);
+    
+    pPoly.setBufMesh(bufMesh);
+}
+
+
+// Creating meshes
+function myCreatePolygons() {
+    var i;
+    
+    var pPoly;
+    
+    var arrColor = [1.0, 1.0, 1.0, 1.0];
+    var vecPos = [0.0, 0.0, 0.0];
+    var fSize = 1.0;
+    
+    for ( i = -3 ; i < 50 ; i++ ) {
+        arrColor[ 0 ] = arrColor[ 1 ] = arrColor[ 2 ] = 0.0;
+        
+        if ( i % 3 == 0 ) {
+            arrColor[ 0 ] = 1.0;
+        } else if ( i % 3 == 1 ) {
+            arrColor[ 1 ] = 1.0;
+        } else {
+            arrColor[ 2 ] = 1.0;
+        }
+        
+        vecPos[ 0 ] = -3.0;
+        vecPos[ 1 ] = 0.0;
+        vecPos[ 2 ] = -3.0 * i;
+        
+        pPoly = new myPolygonData();
+        myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor);
+        arrObjs.push(pPoly);
+        
+        vecPos[ 0 ] = 3.0;
+        vecPos[ 1 ] = 0.0;
+        vecPos[ 2 ] = -3.0 * i;
+        
+        pPoly = new myPolygonData();
+        myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor);
+        arrObjs.push(pPoly);
+    }
+    
+    return 0;
+}
+
+
+function myCreateStars() {
+    var i;
+    
+    var fR, fTheta, fPhi;
+    
+    var arrIdx, arrTex;
+    
+    // Setting positions of stars randomly
+    fR = fFFar / 32.0;
+    
+    for ( i = 0 ; i < 360 ; i++ ) {
+        var vecStar;
+        
+        fTheta =       Math.PI * Math.random();
+        fPhi   = 2.0 * Math.PI * Math.random();
+        
+        vecStar = new Array(3);
+        
+        vecStar[ 0 ] = fR * Math.sin(fTheta) * Math.cos(fPhi);
+        vecStar[ 1 ] = fR * Math.sin(fTheta) * Math.sin(fPhi);
+        vecStar[ 2 ] = fR * Math.cos(fTheta);
+        
+        arrStars.push(vecStar);
+    }
+    
+    // Creating polygon for star
+    bufMeshStar = new MeshBuffer();
+    
+    arrVtxStar = new Array(12);
+    arrIdx = [0, 1, 2, 1, 3, 2]; // Two triangles
+    
+    // It will be set by each star
+    for ( i = 0 ; i < arrVtxStar.length ; i++ ) {
+        arrVtxStar[ i ] = 0.0;
+    }
+    
+    bufMeshStar.insertVertexArray(glhMain, arrVtxStar, 4);
+    bufMeshStar.insertIndexArray(glhMain, arrIdx, 3 * 2);
+    
+    return 0;
+}
+
+
+// Running the calculation of Lorentz transformations for all objects
+function myCalcTransformationForPoly() {
+    var i;
+    
+    var gfVel, gfGamma;
+    
+    // Calculating velocity (divided by c) and gamma from momentum ( / mass)
+    gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
+    gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
+    
+    for ( i = 0 ; i < arrObjs.length ; i++ ) {
+        myApplyLorentzTransformation(arrObjs[ i ], vecPosCamera, gfVel, gfGamma);
+    }
+    
+    // Dumping informations (momentum, velocity, gamma)
+    document.getElementById("divDump").innerHTML = 
+        "Velocity = " + gfVel + "<br>Gamma = " + gfGamma;
+}
+
+
+function myDrawOneStar(vecPos) {
+    var vecStar = [0.0, 0.0, 0.0, 0.0];
+    
+    var fSizeStar = 0.002;
+    var fDistFactor = fFFar * 0.1 / myGetLenVec(vecPos);
+    var matI = mat4.create();
+    
+    vecStar[ 0 ] = vecPos[ 0 ] * fDistFactor;
+    vecStar[ 1 ] = vecPos[ 1 ] * fDistFactor;
+    vecStar[ 2 ] = vecPos[ 2 ] * fDistFactor;
+    vecStar[ 3 ] = 1.0;
+    
+    mat4.identity(matI);
+    
+    // Calculate the posistion of the star in frustrum coordinate
+    mat4.multiplyVec4(mvMatrix, vecStar, vecStar);
+    mat4.multiplyVec4(pMatrix, vecStar, vecStar);
+    myMulVec(vecStar, 1.0 / vecStar[ 3 ]);
+    
+    arrVtxStar[ 3 * 0 + 0 ] = vecStar[ 0 ] - fSizeStar;
+    arrVtxStar[ 3 * 0 + 1 ] = vecStar[ 1 ] - fSizeStar;
+    arrVtxStar[ 3 * 0 + 2 ] = vecStar[ 2 ];
+    
+    arrVtxStar[ 3 * 1 + 0 ] = vecStar[ 0 ] + fSizeStar;
+    arrVtxStar[ 3 * 1 + 1 ] = vecStar[ 1 ] - fSizeStar;
+    arrVtxStar[ 3 * 1 + 2 ] = vecStar[ 2 ];
+    
+    arrVtxStar[ 3 * 2 + 0 ] = vecStar[ 0 ] - fSizeStar;
+    arrVtxStar[ 3 * 2 + 1 ] = vecStar[ 1 ] + fSizeStar;
+    arrVtxStar[ 3 * 2 + 2 ] = vecStar[ 2 ];
+    
+    arrVtxStar[ 3 * 3 + 0 ] = vecStar[ 0 ] + fSizeStar;
+    arrVtxStar[ 3 * 3 + 1 ] = vecStar[ 1 ] + fSizeStar;
+    arrVtxStar[ 3 * 3 + 2 ] = vecStar[ 2 ];
+    
+    bufMeshStar.modifyVertexArray(glhMain, arrVtxStar);
+    bufMeshStar.drawMesh(glhMain, matI, matI);
+    
+    return 0;
+}
+
+
+// Running the calculation of Lorentz transformations for all objects
+function myDrawStars() {
+    var i;
+    
+    var gfVel, gfGamma;
+    
+    var vecStar = [0.0, 0.0, 0.0];
+    
+    glhMain.disableLight();
+    
+    // Calculating velocity (divided by c) and gamma from momentum ( / mass)
+    gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
+    gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
+    
+    for ( i = 0 ; i < arrStars.length ; i++ ) {
+        myApplyLorentzTransToPoint(vecStar, arrStars[ i ], gfVel, gfGamma);
+        myDrawOneStar(vecStar);
+    }
+    
+    return 0;
+}
+
+
+function myDrawScene() {
+    var i;
+    
+    var matNor;
+    var vecDirLightTurned = [0.0, 0.0, 0.0, 0.0];
+    
+    // We do Lorentz-transform at here!
+    myCalcTransformationForPoly();
+    
+    glhMain.initDraw();
+    
+    // Set the perspective matrix
+    // The far plane is set so far to show stars which are far and far away
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 
+        0.1, fFFar, pMatrix);
+    
+    // Set matrix for camera
+    mat4.identity(mvMatrix);
+    //mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    mat4.rotate(mvMatrix, fXAngleCamera, [1, 0, 0]);
+    mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
+    //mat4.scale(mvMatrix, [fScale, fScale, fScale]);
+    
+    // Draw objects
+    myDrawStars();
+    
+    // Set the configuration for light
+    if ( bOnLight ) {
+        vecDirLightTurned[ 0 ] = vec3DirLight[ 0 ];
+        vecDirLightTurned[ 1 ] = vec3DirLight[ 1 ];
+        vecDirLightTurned[ 2 ] = vec3DirLight[ 2 ];
+        vecDirLightTurned[ 3 ] = 0.0;
+        
+        mat4.multiplyVec4(mvMatrix, vecDirLightTurned, vecDirLightTurned);
+        
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vecDirLightTurned);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
+    
+    // Draw objects
+    for ( i = 0 ; i < arrObjs.length ; i++ ) {
+        arrObjs[ i ].renewVertexInfo(glhMain);
+        arrObjs[ i ].getBufMesh().drawMesh(glhMain, pMatrix, mvMatrix);
+    }
+}
+
+
+function handleEventMouseDown(event) {
+    bIsMouseDown = true;
+    nXMousePrev = event.clientX;
+    nYMousePrev = event.clientY;
+}
+
+
+function handleEventMouseUp(event) {
+    bIsMouseDown = false;
+}
+
+
+function handleEventMouseMove(event) {
+    var nXMouseCurr, nYMouseCurr;
+    
+    if ( !bIsMouseDown ) {
+        nXMouseCurr = nYMouseCurr = 0;
+        
+        return;
+    }
+    
+    nXMouseCurr = event.clientX;
+    nYMouseCurr = event.clientY;
+    
+    fXAngleCamera += ( nYMouseCurr - nYMousePrev ) * fSensible;
+    fZAngleCamera += ( nXMouseCurr - nXMousePrev ) * fSensible;
+    
+    if ( fXAngleCamera < -Math.PI / 2 * 0.95 ) {
+        fXAngleCamera = -Math.PI / 2 * 0.95;
+    }
+    
+    if ( fXAngleCamera >  Math.PI / 2 * 0.95 ) {
+        fXAngleCamera =  Math.PI / 2 * 0.95;
+    }
+    
+    if ( fZAngleCamera < 0 ) {
+        fZAngleCamera += 2 * Math.PI;
+    }
+    
+    if ( fZAngleCamera > 2 * Math.PI ) {
+        fZAngleCamera -= 2 * Math.PI;
+    }
+    
+    nXMousePrev = nXMouseCurr;
+    nYMousePrev = nYMouseCurr;
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow, nElapsed;
+    
+    var gfVel;
+    
+    nTimeNow = new Date().getTime();
+    nElapsed = 0;
+    
+    gfMom = document.getElementById("inputtextMom").value;
+    
+    // Calculating some variables with respect to the elapsed time
+    if ( nTimeLast != 0) {
+        nElapsed = nTimeNow - nTimeLast;
+        
+        gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
+        // Note that in OpenGL the coordinate is fliped in z-axis
+        vecPosCamera[ 2 ] -= gfVel * nElapsed / 1000.0;
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    window.setTimeout(myDoTick, 1000 / 60);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myLaunchGL() {
+    var canvasMain = document.getElementById("canvasMain");
+    
+    mat4.identity(cameraMatrix);
+    
+    glhMain = new glHeader();
+    glhMain.initGL(canvasMain);
+    
+    bOnLight = true;
+    
+    myCreatePolygons();
+    myCreateStars();
+    
+    canvasMain.onmousedown = handleEventMouseDown;
+    document.onmouseup = handleEventMouseUp;
+    document.onmousemove = handleEventMouseMove;
+    
+    myDoTick();
+}
+
+
+function myResetAll() {
+    document.getElementById("inputtextMom").value = 0.0;
+    
+    vecPosCamera[ 0 ] = 0.0;
+    vecPosCamera[ 1 ] = 0.0;
+    vecPosCamera[ 2 ] = 0.0;
+    
+    fXAngleCamera = 0.0;
+    fZAngleCamera = 0.0;
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+<br>
+<div>Momentum / m<sub>observer</sub>c = <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
+<input type = "button" value = "Reset" onclick = "myResetAll()"></div>
+<div id = "divDump"></div>
+<div id = "divDump2"></div>
+</body>
+</html>
+
+

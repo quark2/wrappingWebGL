@@ -132,26 +132,3 @@ function myApplyLorentzTransformation(pPoly, vecPosCamera, gfVel, gfGamma) {
 }
 
 
-/*function mySetFrame(pglInfo) {
-	int i;
-	
-	GLfloat gfMom, gfVel, gfGamma;
-	
-	GLfloat gfTime = 1.0f / g_nFPS;
-	
-	gfMom = pglInfo.gfMomentum;
-	gfVel = gfMom / sqrt(1 + gfMom * gfMom);
-	gfGamma = 1.0f / sqrt(1 - gfVel * gfVel);
-	
-	// Beware; the orientalization of z-axis
-	pglInfo.vecPos[ 2 ] -= gfVel * gfTime;
-	
-	for ( i = 0 ; i < pglInfo.nNumObj ; i++ ) {
-		myApplyLorentzTransformation(&pglInfo.arrPolys[ i ], 
-			pglInfo.vecPos, gfVel, gfGamma);
-	}
-	
-	return 0;
-}*/
-
-
