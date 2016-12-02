@@ -6,6 +6,8 @@
 
 <script type="text/javascript" src = "../../src/gl_wrapper.js"></script>
 
+<script type="text/javascript" src = "HSLtoRGB.js"></script>
+
 <script language = "javascript">
 var glhMain;
 
@@ -20,10 +22,8 @@ var vec3DirLight = [-0.25, -0.25, -1.0];
 
 var meshbufCube;
 
-var texCube;
-
 var nTimeLast = 0;
-var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0;
+var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0, fColorWheel = 0;
 
 
 function myCreateMeshes() {
@@ -115,74 +115,15 @@ function myCreateMeshes() {
         -1.0,  0.0,  0.0
     ];
     
-    var arrClrCubePre = [
-        [1.0, 0.0, 0.0, 1.0], // Front face
-        [1.0, 1.0, 0.0, 1.0], // Back face
-        [0.0, 1.0, 0.0, 1.0], // Top face
-        [1.0, 0.5, 0.5, 1.0], // Bottom face
-        [1.0, 0.0, 1.0, 1.0], // Right face
-        [0.0, 0.0, 1.0, 1.0]  // Left face
-    ];
-    
-    var arrClrCube = [];
-    
-    for ( var i in arrClrCubePre ) {
-        for ( var j = 0 ; j < 4 ; j++ ) {
-            arrClrCube = arrClrCube.concat(arrClrCubePre[ i ]);
-        }
-    }
-    
-    var arrTexCube = [
-        // Front face
-		0.0, 0.0,
-		1.0, 0.0,
-		1.0, 1.0,
-		0.0, 1.0,
-
-		// Back face
-		1.0, 0.0,
-		1.0, 1.0,
-		0.0, 1.0,
-		0.0, 0.0,
-
-		// Top face
-		0.0, 1.0,
-		0.0, 0.0,
-		1.0, 0.0,
-		1.0, 1.0,
-
-		// Bottom face
-		1.0, 1.0,
-		0.0, 1.0,
-		0.0, 0.0,
-		1.0, 0.0,
-
-		// Right face
-		1.0, 0.0,
-		1.0, 1.0,
-		0.0, 1.0,
-		0.0, 0.0,
-
-		// Left face
-		0.0, 0.0,
-		1.0, 0.0,
-		1.0, 1.0,
-		0.0, 1.0,
-    ];
-    
-    arrColorUniform = [1.0, 0.0, 0.0, 1.0];
-    
     meshbufCube.insertVertexArray(glhMain, arrVtxCube, 24);
     meshbufCube.insertIndexArray(glhMain, arrIdxCube, 36);
     meshbufCube.insertNormalArray(glhMain, arrNorCube, 24);
-    //meshbufCube.insertColorArray(glhMain, arrClrCube, 24);
-    //meshbufCube.insertTextureArray(glhMain, arrTexCube, 24);
-    meshbufCube.setUniformColor(glhMain, arrColorUniform);
 }
 
 
 function myDrawScene() {
     var fScale = 1.2 + 0.5 * Math.sin(fScaleFactorCube);
+    var arrColorUniform = [0.0, 0.0, 0.0, 1.0];
     
     glhMain.initDraw();
     
@@ -204,7 +145,9 @@ function myDrawScene() {
     mat4.rotate(mvMatrix, fAngle2Cube, [0, 0, 1]);
     mat4.scale(mvMatrix, [fScale, fScale, fScale]);
     
-    //texCube.bindTexture(glhMain, 0);
+    myHSL2RGB([fColorWheel, 100.0, 50.0], arrColorUniform);
+    meshbufCube.setUniformColor(glhMain, arrColorUniform);
+    
     meshbufCube.drawMesh(glhMain, pMatrix, mvMatrix);
 }
 
@@ -218,6 +161,11 @@ function myMakeAnimation() {
         fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
         fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
         fScaleFactorCube += 0.35 * (nElapsed * Math.PI) / 1000.0;
+        fColorWheel += 0.6;
+        
+        if ( fColorWheel > 360.0 ) {
+            fColorWheel -= 360.0;
+        }
     }
     
     nTimeLast = nTimeNow;
@@ -240,8 +188,6 @@ function myLaunchGL() {
     bOnLight = true;
     
     myCreateMeshes();
-    texCube = new TextureBuffer(glhMain, "crate.gif");
-    //texCube = new TextureBuffer(glhMain, "icon_128.png");
     
     myDoTick();
 }
