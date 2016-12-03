@@ -7,67 +7,67 @@
 
 
 g_strShaderCodeFrag = 
-    "precision mediump float;\n" + 
-    "\n" + 
-    "uniform bool u_bTexture;\n" + 
-    "uniform sampler2D uSampler;\n" + 
-    "\n" + 
-    "varying vec3 vLight;\n" + 
-    "\n" + 
-    "varying vec4 vColor;\n" + 
-    "varying vec2 vTextureCoord;\n" + 
-    "\n" + 
-    "void main(void) {\n" + 
-    "    vec4 vec4MainClr;\n" + 
-    "    \n" + 
-    "    if ( u_bTexture ) {\n" + 
-    "        vec4MainClr = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));\n" + 
-    "    } else {\n" + 
-    "        vec4MainClr = vColor;\n" + 
-    "    }\n" + 
-    "    \n" + 
-    "    gl_FragColor = vec4(vec4MainClr.rgb * vLight, vec4MainClr.a);\n" + 
-    "}\n";
+   "precision mediump float;\n" + 
+   "\n" + 
+   "uniform bool u_bTexture;\n" + 
+   "uniform sampler2D u_Sampler;\n" + 
+   "\n" + 
+   "varying vec3 vecLight;\n" + 
+   "\n" + 
+   "varying vec4 vecColor;\n" + 
+   "varying vec2 vecTextureCoord;\n" + 
+   "\n" + 
+   "void main(void) {\n" + 
+   "    vec4 vec4MainClr;\n" + 
+   "    \n" + 
+   "    if ( u_bTexture ) {\n" + 
+   "        vec4MainClr = texture2D(u_Sampler, vec2(vecTextureCoord.s, vecTextureCoord.t));\n" + 
+   "    } else {\n" + 
+   "        vec4MainClr = vecColor;\n" + 
+   "    }\n" + 
+   "    \n" + 
+   "    gl_FragColor = vec4(vec4MainClr.rgb * vecLight, vec4MainClr.a);\n" + 
+   "}\n";
 
 g_strShaderCodeVtx = 
-    "attribute vec3 aVertexPosition;\n" + 
-    "attribute vec4 aVertexColor;\n" + 
-    "attribute vec3 aVertexNormal;\n" + 
-    "attribute vec2 aTextureCoord;\n" + 
-    "\n" + 
-    "uniform mat4 uMVMatrix;\n" + 
-    "uniform mat4 uPMatrix;\n" + 
-    "uniform mat3 uNMatrix;\n" + 
-    "\n" + 
-    "uniform vec4 uClrUniform;\n" + 
-    "\n" + 
-    "uniform vec3 uClrAmb;\n" + 
-    "uniform vec3 uClrDir;\n" + 
-    "uniform vec3 uDirLight;\n" + 
-    "\n" + 
-    "uniform bool u_bLight;\n" + 
-    "uniform bool u_bColored;\n" + 
-    "uniform bool u_bTexture;\n" + 
-    "\n" + 
-    "varying vec3 vLight;\n" + 
-    "\n" + 
-    "varying vec4 vColor;\n" + 
-    "varying vec2 vTextureCoord;\n" + 
-    "\n" + 
-    "void main(void) {\n" + 
-    "    gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);\n" + 
-    "    \n" + 
-    "    if ( u_bLight ) {\n" + 
-    "        vec3 vec3NorTrans = uNMatrix * aVertexNormal;\n" + 
-    "        float fWeightDir = max(dot(vec3NorTrans, uDirLight), 0.0);\n" + 
-    "        vLight = uClrAmb + uClrDir * fWeightDir;\n" + 
-    "    } else {\n" + 
-    "        vLight = vec3(1.0, 1.0, 1.0);\n" + 
-    "    }\n" + 
-    "    \n" + 
-    "    vColor = ( u_bColored ? aVertexColor : uClrUniform );\n" + 
-    "    vTextureCoord = aTextureCoord;\n" + 
-    "}\n";
+   "attribute vec3 a_VertexPosition;\n" + 
+   "attribute vec4 a_VertexColor;\n" + 
+   "attribute vec3 a_VertexNormal;\n" + 
+   "attribute vec2 a_TextureCoord;\n" + 
+   "\n" + 
+   "uniform mat4 u_matP;\n" + 
+   "uniform mat4 u_matMV;\n" + 
+   "uniform mat3 u_matN;\n" + 
+   "\n" + 
+   "uniform vec4 u_vecClrUniform;\n" + 
+   "\n" + 
+   "uniform vec3 u_vecClrAmb;\n" + 
+   "uniform vec3 u_vecClrDir;\n" + 
+   "uniform vec3 u_vecDirLight;\n" + 
+   "\n" + 
+   "uniform bool u_bLight;\n" + 
+   "uniform bool u_bColored;\n" + 
+   "uniform bool u_bTexture;\n" + 
+   "\n" + 
+   "varying vec3 vecLight;\n" + 
+   "\n" + 
+   "varying vec4 vecColor;\n" + 
+   "varying vec2 vecTextureCoord;\n" + 
+   "\n" + 
+   "void main(void) {\n" + 
+   "    gl_Position = u_matP * u_matMV * vec4(a_VertexPosition, 1.0);\n" + 
+   "    \n" + 
+   "    if ( u_bLight ) {\n" + 
+   "        vec3 vec3NorTrans = u_matN * a_VertexNormal;\n" + 
+   "        float fWeightDir = max(dot(vec3NorTrans, u_vecDirLight), 0.0);\n" + 
+   "        vecLight = u_vecClrAmb + u_vecClrDir * fWeightDir;\n" + 
+   "    } else {\n" + 
+   "        vecLight = vec3(1.0, 1.0, 1.0);\n" + 
+   "    }\n" + 
+   "    \n" + 
+   "    vecColor = ( u_bColored ? a_VertexColor : u_vecClrUniform );\n" + 
+   "    vecTextureCoord = a_TextureCoord;\n" + 
+   "}\n";
 
 
 ////////////////////////////////////////////////////////////////
@@ -78,7 +78,29 @@ g_strShaderCodeVtx =
 
 
 function glHeader() {
+    this.strShaderCodeVtx  = g_strShaderCodeVtx;
+    this.strShaderCodeFrag = g_strShaderCodeFrag;
+    
+    this.addExtraVariables = function(gl, shaderProgram) {
+        return 0;
+    };
+    
     this.bOnLight = false;
+}
+
+
+glHeader.prototype.setShaderCodeVtx = function(strCode) {
+    this.strShaderCodeVtx = strCode;
+}
+
+
+glHeader.prototype.setShaderCodeFrag = function(strCode) {
+    this.strShaderCodeFrag = strCode;
+}
+
+
+glHeader.prototype.setFuncExtraVariables = function(funcVar) {
+    this.addExtraVariables = funcVar;
 }
 
 
@@ -99,8 +121,8 @@ glHeader.prototype.initShaders = function() {
     var fragmentShader = this.gl.createShader(this.gl.FRAGMENT_SHADER);
     var vertexShader =   this.gl.createShader(this.gl.VERTEX_SHADER);
     
-    this.buildShader(fragmentShader, g_strShaderCodeFrag);
-    this.buildShader(vertexShader,   g_strShaderCodeVtx);
+    this.buildShader(fragmentShader, this.strShaderCodeFrag);
+    this.buildShader(vertexShader,   this.strShaderCodeVtx);
     
     this.shaderProgram = this.gl.createProgram();
     this.gl.attachShader(this.shaderProgram, vertexShader);
@@ -115,36 +137,38 @@ glHeader.prototype.initShaders = function() {
     this.gl.useProgram(this.shaderProgram);
     
     this.shaderProgram.vertexPositionAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "aVertexPosition");
+        "a_VertexPosition");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexPositionAttribute);
     
     this.shaderProgram.vertexNormalAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "aVertexNormal");
+        "a_VertexNormal");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexNormalAttribute);
     
     this.shaderProgram.vertexColorAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "aVertexColor");
+        "a_VertexColor");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexColorAttribute);
     
     this.shaderProgram.textureCoordAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "aTextureCoord");
+        "a_TextureCoord");
     this.gl.enableVertexAttribArray(this.shaderProgram.textureCoordAttribute);
     
-    this.shaderProgram.pMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "uPMatrix");
-    this.shaderProgram.mvMatrixUniform = this.gl.getUniformLocation(this.shaderProgram, "uMVMatrix");
-    this.shaderProgram.nMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "uNMatrix");
+    this.shaderProgram.pMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "u_matP");
+    this.shaderProgram.mvMatrixUniform = this.gl.getUniformLocation(this.shaderProgram, "u_matMV");
+    this.shaderProgram.nMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "u_matN");
     
     this.shaderProgram.bLightUniform   = this.gl.getUniformLocation(this.shaderProgram, "u_bLight");
     this.shaderProgram.bColoredUniform = this.gl.getUniformLocation(this.shaderProgram, "u_bColored");
     this.shaderProgram.bTextureUniform = this.gl.getUniformLocation(this.shaderProgram, "u_bTexture");
     
-    this.shaderProgram.clrUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrUniform");
+    this.shaderProgram.clrUniform      = this.gl.getUniformLocation(this.shaderProgram, "u_vecClrUniform");
     
-    this.shaderProgram.clrAmbUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrAmb");
-    this.shaderProgram.clrDirUniform   = this.gl.getUniformLocation(this.shaderProgram, "uClrDir");
-    this.shaderProgram.dirLightUniform = this.gl.getUniformLocation(this.shaderProgram, "uDirLight");
+    this.shaderProgram.clrAmbUniform   = this.gl.getUniformLocation(this.shaderProgram, "u_vecClrAmb");
+    this.shaderProgram.clrDirUniform   = this.gl.getUniformLocation(this.shaderProgram, "u_vecClrDir");
+    this.shaderProgram.dirLightUniform = this.gl.getUniformLocation(this.shaderProgram, "u_vecDirLight");
     
-    this.shaderProgram.samplerUniform  = this.gl.getUniformLocation(this.shaderProgram, "uSampler");
+    this.shaderProgram.samplerUniform  = this.gl.getUniformLocation(this.shaderProgram, "u_Sampler");
+    
+    this.addExtraVariables(this.gl, this.shaderProgram);
 }
 
 
@@ -231,6 +255,11 @@ glHeader.prototype.setSampler = function(nID) {
 
 glHeader.prototype.getGL = function() {
     return this.gl;
+}
+
+
+glHeader.prototype.getShaderProgram = function() {
+    return this.shaderProgram;
 }
 
 

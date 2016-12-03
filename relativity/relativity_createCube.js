@@ -16,6 +16,12 @@ function myPolygonData() {
     
     this.vecPos = [0.0, 0.0, 0.0];
     this.gfSize = 1.0;
+    
+    this.matMV = mat4.create();
+    this.matN  = mat3.create();
+    
+    mat4.identity(this.matMV);
+    mat3.identity(this.matN);
 }
 
 
@@ -89,6 +95,16 @@ myPolygonData.prototype.getSize = function() {
 }
 
 
+myPolygonData.prototype.getMatrixWorld = function() {
+    return this.matMV;
+}
+
+
+myPolygonData.prototype.getMatrixNormalWorld = function() {
+    return this.matN;
+}
+
+
 myPolygonData.prototype.setNumVtx = function(nNumVtx) {
     this.nNumVtx = nNumVtx;
 }
@@ -146,6 +162,14 @@ myPolygonData.prototype.setPos = function(vecPos) {
 
 myPolygonData.prototype.setSize = function(gfSize) {
     this.gfSize = gfSize;
+}
+
+
+myPolygonData.prototype.setMatrixWorld = function(matMV) {
+    mat4.set(matMV, this.matMV);
+    
+    mat4.toInverseMat3(matMV, this.matN);
+    mat3.transpose(this.matN);
 }
 
 
