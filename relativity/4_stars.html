@@ -30,6 +30,9 @@ var arrStars = [];
 var bufMeshStar;
 var arrVtxStar;
 
+var nNumStars = 512;
+var fSizeStar = 0.002;
+
 var bIsMouseDown = false;
 
 var nXMousePrev = 0, nYMousePrev = 0;
@@ -111,7 +114,7 @@ function myCreateStars() {
     // Setting positions of stars randomly
     fR = fFFar / 32.0;
     
-    for ( i = 0 ; i < 360 ; i++ ) {
+    for ( i = 0 ; i < nNumStars ; i++ ) {
         var vecStar;
         
         fTheta =       Math.PI * Math.random();
@@ -167,8 +170,8 @@ function myCalcTransformationForPoly() {
 function myDrawOneStar(vecPos) {
     var vecStar = [0.0, 0.0, 0.0, 0.0];
     
-    var fSizeStar = 0.002;
-    var fDistFactor = fFFar * 0.1 / myGetLenVec(vecPos);
+    //var fDistFactor = fFFar * 0.1 / myGetLenVec(vecPos);
+    var fDistFactor = 1.0;
     var matI = mat4.create();
     
     vecStar[ 0 ] = vecPos[ 0 ] * fDistFactor;
@@ -182,6 +185,13 @@ function myDrawOneStar(vecPos) {
     mat4.multiplyVec4(mvMatrix, vecStar, vecStar);
     mat4.multiplyVec4(pMatrix, vecStar, vecStar);
     myMulVec(vecStar, 1.0 / vecStar[ 3 ]);
+    
+    // To fix some strange behavior of stars
+    if ( vecStar[ 2 ] > 1.0 ) {
+        return 0;
+    }
+    
+    vecStar[ 2 ] = 0.9999999;
     
     arrVtxStar[ 3 * 0 + 0 ] = vecStar[ 0 ] - fSizeStar;
     arrVtxStar[ 3 * 0 + 1 ] = vecStar[ 1 ] - fSizeStar;
@@ -351,7 +361,7 @@ function myMakeAnimation() {
 
 
 function myDoTick() {
-    window.setTimeout(myDoTick, 1000 / 60);
+    requestAnimationFrame(myDoTick, 1000 / 60);
     myDrawScene();
     myMakeAnimation();
 }
