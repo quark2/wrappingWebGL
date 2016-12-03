@@ -7,99 +7,99 @@
 
 <script type="text/javascript" src = "relativity_createCube.js"></script>
 
+<script id="vscodeRelativity" type="x-shader/x-vertex">
+attribute vec3 a_VertexPosition;
+attribute vec3 a_VertexNormal;
+attribute vec4 a_VertexColor;
+attribute vec2 a_TextureCoord;
+
+uniform mat4 u_matP;
+uniform mat4 u_matMV;
+uniform mat3 u_matN;
+
+uniform mat4 u_matMVWorld;
+uniform mat3 u_matNWorld;
+
+uniform vec4 u_vecClrUniform;
+
+uniform vec3 u_vecClrAmb;
+uniform vec3 u_vecClrDir;
+uniform vec3 u_vecDirLight;
+
+uniform bool u_bLight;
+uniform bool u_bColored;
+uniform bool u_bTexture;
+
+// The following three variables are added for Lorentz transformation
+uniform vec3  u_vecPosCenter;
+uniform float u_fVel;
+uniform float u_fGamma;
+
+uniform bool u_bIsStar;
+
+varying vec3 vecLight;
+
+varying vec4 vecColor;
+varying vec2 vecTextureCoord;
+
+
+vec3 myTransformPos(vec3 vecPos) {
+    vec3 vecRes;
+    
+    vecRes[ 0 ] = vecPos[ 0 ];
+    vecRes[ 1 ] = vecPos[ 1 ];
+    vecRes[ 2 ] = u_fGamma * vecPos[ 2 ] - u_fGamma * u_fVel * length(vecPos);
+    
+    return vecRes;
+}
+
+
+void main(void) {
+    vec4 vec4PosWorld;
+    vec3 vecPosCalc, vecNorCalc;
+    
+    if ( !u_bIsStar ) {
+        vec4PosWorld = u_matMVWorld * vec4(a_VertexPosition, 1.0);
+        
+        vecPosCalc[ 0 ] = vec4PosWorld[ 0 ];
+        vecPosCalc[ 1 ] = vec4PosWorld[ 1 ];
+        vecPosCalc[ 2 ] = vec4PosWorld[ 2 ];
+        
+        vecPosCalc = vecPosCalc - u_vecPosCenter;
+        vecNorCalc = u_matNWorld * a_VertexNormal + vecPosCalc;
+        
+        vecPosCalc = myTransformPos(vecPosCalc);
+        
+        gl_Position = u_matP * u_matMV * vec4(vecPosCalc, 1.0);
+        
+        vecNorCalc = normalize(myTransformPos(vecNorCalc) - vecPosCalc);
+    } else {
+        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(u_vecPosCenter), 1.0);
+        vec4PosWorld /= vec4PosWorld[ 3 ];
+        
+        if ( vec4PosWorld[ 2 ] < 1.0 ) {
+            vec4PosWorld[ 2 ] = 0.9999999;
+        }
+        
+        gl_Position = vec4PosWorld + vec4(a_VertexPosition, 0.0);
+        
+        vecNorCalc = vec3(0.0, 0.0, 0.0); // In this case light is turned off
+    }
+    
+    if ( u_bLight ) {
+        vec3 vec3NorTrans = u_matN * vecNorCalc;
+        float fWeightDir = max(dot(vec3NorTrans, u_vecDirLight), 0.0);
+        vecLight = u_vecClrAmb + u_vecClrDir * fWeightDir;
+    } else {
+        vecLight = vec3(1.0, 1.0, 1.0);
+    }
+    
+    vecColor = ( u_bColored ? a_VertexColor : u_vecClrUniform );
+    vecTextureCoord = a_TextureCoord;
+}
+</script>
+
 <script language = "javascript">
-var g_strShaderCodeVtxRelativity = 
-   "attribute vec3 a_VertexPosition;\n" + 
-   "attribute vec3 a_VertexNormal;\n" + 
-   "attribute vec4 a_VertexColor;\n" + 
-   "attribute vec2 a_TextureCoord;\n" + 
-   "\n" + 
-   "uniform mat4 u_matP;\n" + 
-   "uniform mat4 u_matMV;\n" + 
-   "uniform mat3 u_matN;\n" + 
-   "\n" + 
-   "uniform mat4 u_matMVWorld;\n" + 
-   "uniform mat3 u_matNWorld;\n" + 
-   "\n" + 
-   "uniform vec4 u_vecClrUniform;\n" + 
-   "\n" + 
-   "uniform vec3 u_vecClrAmb;\n" + 
-   "uniform vec3 u_vecClrDir;\n" + 
-   "uniform vec3 u_vecDirLight;\n" + 
-   "\n" + 
-   "uniform bool u_bLight;\n" + 
-   "uniform bool u_bColored;\n" + 
-   "uniform bool u_bTexture;\n" + 
-   "\n" + 
-   "// The following three variables are added for Lorentz transformation\n" + 
-   "uniform vec3  u_vecPosCenter;\n" + 
-   "uniform float u_fVel;\n" + 
-   "uniform float u_fGamma;\n" + 
-   "\n" + 
-   "uniform bool u_bIsStar;\n" + 
-   "\n" + 
-   "varying vec3 vecLight;\n" + 
-   "\n" + 
-   "varying vec4 vecColor;\n" + 
-   "varying vec2 vecTextureCoord;\n" + 
-   "\n" + 
-   "\n" + 
-   "vec3 myTransformPos(vec3 vecPos) {\n" + 
-   "    vec3 vecRes;\n" + 
-   "    \n" + 
-   "    vecRes[ 0 ] = vecPos[ 0 ];\n" + 
-   "    vecRes[ 1 ] = vecPos[ 1 ];\n" + 
-   "    vecRes[ 2 ] = u_fGamma * vecPos[ 2 ] - u_fGamma * u_fVel * length(vecPos);\n" + 
-   "    \n" + 
-   "    return vecRes;\n" + 
-   "}\n" + 
-   "\n" + 
-   "\n" + 
-   "void main(void) {\n" + 
-   "    vec4 vec4PosWorld;\n" + 
-   "    vec3 vecPosCalc, vecNorCalc;\n" + 
-   "    \n" + 
-   "    if ( !u_bIsStar ) {\n" + 
-   "        vec4PosWorld = u_matMVWorld * vec4(a_VertexPosition, 1.0);\n" + 
-   "        \n" + 
-   "        vecPosCalc[ 0 ] = vec4PosWorld[ 0 ];\n" + 
-   "        vecPosCalc[ 1 ] = vec4PosWorld[ 1 ];\n" + 
-   "        vecPosCalc[ 2 ] = vec4PosWorld[ 2 ];\n" + 
-   "        \n" + 
-   "        vecPosCalc = vecPosCalc - u_vecPosCenter;\n" + 
-   "        vecNorCalc = u_matNWorld * a_VertexNormal + vecPosCalc;\n" + 
-   "        \n" + 
-   "        vecPosCalc = myTransformPos(vecPosCalc);\n" + 
-   "        \n" + 
-   "        gl_Position = u_matP * u_matMV * vec4(vecPosCalc, 1.0);\n" + 
-   "        \n" + 
-   "        vecNorCalc = normalize(myTransformPos(vecNorCalc) - vecPosCalc);\n" + 
-   "    } else {\n" + 
-   "        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(u_vecPosCenter), 1.0);\n" + 
-   "        vec4PosWorld /= vec4PosWorld[ 3 ];\n" + 
-   "        \n" + 
-   "        if ( vec4PosWorld[ 2 ] < 1.0 ) {\n" + 
-   "            vec4PosWorld[ 2 ] = 0.9999999;\n" + 
-   "        }\n" + 
-   "        \n" + 
-   "        gl_Position = vec4PosWorld + vec4(a_VertexPosition, 0.0);\n" + 
-   "        \n" + 
-   "        vecNorCalc = vec3(0.0, 0.0, 0.0); // In this case light is turned off\n" + 
-   "    }\n" + 
-   "    \n" + 
-   "    if ( u_bLight ) {\n" + 
-   "        vec3 vec3NorTrans = u_matN * vecNorCalc;\n" + 
-   "        float fWeightDir = max(dot(vec3NorTrans, u_vecDirLight), 0.0);\n" + 
-   "        vecLight = u_vecClrAmb + u_vecClrDir * fWeightDir;\n" + 
-   "    } else {\n" + 
-   "        vecLight = vec3(1.0, 1.0, 1.0);\n" + 
-   "    }\n" + 
-   "    \n" + 
-   "    vecColor = ( u_bColored ? a_VertexColor : u_vecClrUniform );\n" + 
-   "    vecTextureCoord = a_TextureCoord;\n" + 
-   "}\n";
-
-
 var glhMain;
 
 var fFFar = 32 * 1048576.0;
@@ -169,7 +169,7 @@ function myCreatePolygons() {
     var vecPos = [0.0, 0.0, 0.0];
     var fSize = 1.0;
     
-    for ( i = -150 ; i < 150 ; i++ ) {
+    for ( i = -50 ; i < 50 ; i++ ) {
         arrColor[ 0 ] = arrColor[ 1 ] = arrColor[ 2 ] = 0.0;
         
         if ( i % 3 == 0 ) {
@@ -271,60 +271,15 @@ function mySetMatrixWorld(matMVWorld, matNWorld) {
 }
 
 
-function myEnableStarMode() {
-    glhMain.getGL().uniform1i(glhMain.getShaderProgram().bIsStar, true);
-    
-    return 0;
-}
-
-
-function myDisableStarMode() {
-    glhMain.getGL().uniform1i(glhMain.getShaderProgram().bIsStar, false);
-    
-    return 0;
-}
-
-
-// Running the calculation of Lorentz transformations for all objects
-function myCalcTransformationForPoly() {
-    var i;
-    
-    var gfVel, gfGamma;
-    
-    // Calculating velocity (divided by c) and gamma from momentum ( / mass)
-    gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
-    gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
-    
-    for ( i = 0 ; i < arrObjs.length ; i++ ) {
-        myApplyLorentzTransformation(arrObjs[ i ], vecPosCamera, gfVel, gfGamma);
-    }
-    
-    // Dumping informations (momentum, velocity, gamma)
-    document.getElementById("divDump").innerHTML = 
-        "Velocity = " + gfVel + "<br>Gamma = " + gfGamma;
-}
-
-
-function myDrawOneStar(vecPos, gfVel, gfGamma) {
-    mySetConfTransformation(vecPos, gfVel, gfGamma, true);
-    bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
-    
-    return 0;
-}
-
-
 // Running the calculation of Lorentz transformations for all objects
 function myDrawStars(gfVel, gfGamma) {
     var i;
     
-    //var vecStar = [0.0, 0.0, 0.0];
-    
     glhMain.disableLight();
     
     for ( i = 0 ; i < arrStars.length ; i++ ) {
-        //myApplyLorentzTransToPoint(vecStar, arrStars[ i ], gfVel, gfGamma);
-        //myDrawOneStar(vecStar, gfVel, gfGamma);
-        myDrawOneStar(arrStars[ i ], gfVel, gfGamma);
+        mySetConfTransformation(arrStars[ i ], gfVel, gfGamma, true);
+        bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
     }
     
     return 0;
@@ -349,15 +304,10 @@ function myDrawScene(gfVel, gfGamma) {
     var matNor;
     var vecDirLightTurned = [0.0, 0.0, 0.0, 0.0];
     
-    // We do Lorentz-transform at here!
-    //myCalcTransformationForPoly();
-    
     // Set matrix for camera
     mat4.identity(mvMatrix);
-    //mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
     mat4.rotate(mvMatrix, fXAngleCamera, [1, 0, 0]);
     mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
-    //mat4.scale(mvMatrix, [fScale, fScale, fScale]);
     
     // Draw objects
     myDrawStars(gfVel, gfGamma);
@@ -476,7 +426,22 @@ function myDoTick() {
 
 
 function mySetupGLHeaderForRelativity() {
-    glhMain.setShaderCodeVtx(g_strShaderCodeVtxRelativity);
+    var strShaderVtxCode = "";
+    
+    var objNext;
+    
+    objNext = document.getElementById("vscodeRelativity").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderVtxCode += objNext.textContent;
+        }
+        
+        objNext = objNext.nextSibling;
+    }
+    
+    //glhMain.setShaderCodeVtx(g_strShaderCodeVtxRelativity);
+    glhMain.setShaderCodeVtx(strShaderVtxCode);
     
     glhMain.setFuncExtraVariables(function(gl, shaderProgram) {
         shaderProgram.matMVWorld = gl.getUniformLocation(shaderProgram, "u_matMVWorld");
