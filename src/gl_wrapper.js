@@ -474,6 +474,16 @@ MeshBuffer.prototype.insertTextureArray = function(glHeader, arrTexture, nNumTex
 }
 
 
+MeshBuffer.prototype.enableTextureMode= function() {
+    this.bIsTexture = true;
+}
+
+
+MeshBuffer.prototype.disableTextureMode= function() {
+    this.bIsTexture = false;
+}
+
+
 MeshBuffer.prototype.drawMesh = function(glHeader, matP, matMV) {
     var gl = glHeader.getGL();
     

@@ -74,14 +74,29 @@ void main(void) {
         
         vecNorCalc = normalize(myTransformPos(vecNorCalc) - vecPosCalc);
     } else {
-        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(u_vecPosCenter), 1.0);
+        // This fR is not the actual distance.
+        // Actually, the distance from stars is irrelevant.
+        float fR = 0.1;
+        
+        float fCosTheta, fSinTheta, fCosPhi, fSinPhi;
+        
+        fCosTheta = cos(a_vec3VertexPosition[ 0 ]);
+        fSinTheta = sin(a_vec3VertexPosition[ 0 ]);
+        fCosPhi   = cos(a_vec3VertexPosition[ 1 ]);
+        fSinPhi   = sin(a_vec3VertexPosition[ 1 ]);
+        
+        vecPosCalc[ 0 ] = fR * fSinTheta * fCosPhi;
+        vecPosCalc[ 1 ] = fR * fSinTheta * fSinPhi;
+        vecPosCalc[ 2 ] = fR * fCosTheta;
+        
+        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(vecPosCalc), 1.0);
         vec4PosWorld /= vec4PosWorld[ 3 ];
         
         if ( vec4PosWorld[ 2 ] < 1.0 ) {
             vec4PosWorld[ 2 ] = 0.9999999;
         }
         
-        gl_Position = vec4PosWorld + vec4(a_vec3VertexPosition, 0.0);
+        gl_Position = vec4PosWorld + vec4(a_vec2TextureCoord[ 0 ], a_vec2TextureCoord[ 1 ], 0.0, 0.0);
         
         vecNorCalc = vec3(0.0, 0.0, 0.0); // In this case light is turned off
     }
@@ -121,8 +136,9 @@ var arrStars = [];
 var bufMeshStar;
 var arrVtxStar;
 
-var nNumStars = 512;
-var fSizeStar = 0.002;
+var nNumStars = 16384;
+var fSizeStarX = 0.002;
+var fSizeStarY = 0.002;
 
 var bIsMouseDown = false;
 
@@ -212,43 +228,65 @@ function myCreatePolygons() {
 function myCreateStars() {
     var i;
     
-    var fR, fTheta, fPhi;
+    var fTheta, fPhi;
     
-    var arrIdx, arrTex;
+    var arrVtx, arrIdx, arrTex;
     
-    // Setting positions of stars randomly
-    // This fR is not the actual distance.
-    // Actually, the distance from stars is irrelevant.
-    fR = 0.1;
+    // Creating polygon for stars
+    arrVtx = new Array();
+    arrTex = new Array();
+    arrIdx = new Array();
     
     for ( i = 0 ; i < nNumStars ; i++ ) {
-        var vecStar;
-        
+        // Setting positions of stars randomly
         fTheta =       Math.PI * Math.random();
         fPhi   = 2.0 * Math.PI * Math.random();
         
-        vecStar = new Array(3);
+        arrVtx.push(fTheta);
+        arrVtx.push(fPhi);
+        arrVtx.push(1.0);
         
-        vecStar[ 0 ] = fR * Math.sin(fTheta) * Math.cos(fPhi);
-        vecStar[ 1 ] = fR * Math.sin(fTheta) * Math.sin(fPhi);
-        vecStar[ 2 ] = fR * Math.cos(fTheta);
+        arrVtx.push(fTheta);
+        arrVtx.push(fPhi);
+        arrVtx.push(2.0);
         
-        arrStars.push(vecStar);
+        arrVtx.push(fTheta);
+        arrVtx.push(fPhi);
+        arrVtx.push(3.0);
+        
+        arrVtx.push(fTheta);
+        arrVtx.push(fPhi);
+        arrVtx.push(4.0);
+        
+        arrTex.push(-fSizeStarX);
+        arrTex.push(-fSizeStarY);
+        
+        arrTex.push( fSizeStarX);
+        arrTex.push(-fSizeStarY);
+        
+        arrTex.push(-fSizeStarX);
+        arrTex.push( fSizeStarY);
+        
+        arrTex.push( fSizeStarX);
+        arrTex.push( fSizeStarY);
+        
+        arrIdx.push(4 * i + 0);
+        arrIdx.push(4 * i + 1);
+        arrIdx.push(4 * i + 2);
+        
+        arrIdx.push(4 * i + 1);
+        arrIdx.push(4 * i + 3);
+        arrIdx.push(4 * i + 2);
     }
     
-    // Creating polygon for star
+    // Create mesh for stars
     bufMeshStar = new MeshBuffer();
     
-    arrVtxStar = [
-        -fSizeStar, -fSizeStar, 0.0, 
-         fSizeStar, -fSizeStar, 0.0, 
-        -fSizeStar,  fSizeStar, 0.0, 
-         fSizeStar,  fSizeStar, 0.0
-    ];
-    arrIdx = [0, 1, 2, 1, 3, 2]; // Two triangles
+    bufMeshStar.insertVertexArray(glhMain, arrVtx, 4 * nNumStars);
+    bufMeshStar.insertIndexArray(glhMain, arrIdx, 3 * 2 * nNumStars);
+    bufMeshStar.insertTextureArray(glhMain, arrTex, 2 * nNumStars);
     
-    bufMeshStar.insertVertexArray(glhMain, arrVtxStar, 4);
-    bufMeshStar.insertIndexArray(glhMain, arrIdx, 3 * 2);
+    bufMeshStar.disableTextureMode();
     
     return 0;
 }
@@ -287,10 +325,13 @@ function myDrawStars(gfVel, gfGamma) {
     
     glhMain.disableLight();
     
-    for ( i = 0 ; i < arrStars.length ; i++ ) {
+    mySetConfTransformation(vecPosCamera, gfVel, gfGamma, true);
+    bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
+    
+    /*for ( i = 0 ; i < arrStars.length ; i++ ) {
         mySetConfTransformation(arrStars[ i ], gfVel, gfGamma, true);
         bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
-    }
+    }*/
     
     return 0;
 }
@@ -479,6 +520,10 @@ function myLaunchGL() {
     var canvasMain = document.getElementById("canvasMain");
     
     mat4.identity(cameraMatrix);
+    
+    // Size of star = 2 px * 2 px
+    fSizeStarX = 2.0 / canvasMain.width;
+    fSizeStarY = 2.0 / canvasMain.height;
     
     glhMain = new glHeader();
     
