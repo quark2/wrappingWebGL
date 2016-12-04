@@ -239,7 +239,7 @@ function myCreateStars() {
     
     for ( i = 0 ; i < nNumStars ; i++ ) {
         // Setting positions of stars randomly
-        fTheta =       Math.PI * Math.random();
+        fTheta = Math.acos(2 * Math.random() - 1);
         fPhi   = 2.0 * Math.PI * Math.random();
         
         arrVtx.push(fTheta);
