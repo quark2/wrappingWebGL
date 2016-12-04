@@ -43,6 +43,7 @@ varying vec4 vecColor;
 varying vec2 vecTextureCoord;
 
 
+// This is the core code for Terrell-Penrose effect
 vec3 myTransformPos(vec3 vecPos) {
     vec3 vecRes;
     
@@ -140,9 +141,9 @@ var nNumStars = 16384;
 var fSizeStarX = 0.002;
 var fSizeStarY = 0.002;
 
-var bIsMouseDown = false;
+var bIsDraging = false;
 
-var nXMousePrev = 0, nYMousePrev = 0;
+var nXDragPrev = 0, nYDragPrev = 0;
 
 var fSensible = 0.003;
 var fXAngleCamera = 0, fZAngleCamera = 0;
@@ -173,6 +174,7 @@ function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
     
     // Setting the matrix for arranging of the mesh in the 'world'
     mat4.identity(matMVPoly);
+    mat4.scale(matMVPoly, [fSize, fSize, fSize]);
     mat4.translate(matMVPoly, vecPos);
     
     pPoly.setMatrixWorld(matMVPoly);
@@ -392,32 +394,37 @@ function myDrawScene(gfVel, gfGamma) {
 }
 
 
-function handleEventMouseDown(event) {
-    bIsMouseDown = true;
-    nXMousePrev = event.clientX;
-    nYMousePrev = event.clientY;
-}
-
-
-function handleEventMouseUp(event) {
-    bIsMouseDown = false;
-}
-
-
-function handleEventMouseMove(event) {
-    var nXMouseCurr, nYMouseCurr;
+function handleEventDragStart(nX, nY) {
+    bIsDraging = true;
+    nXDragPrev = nX;
+    nYDragPrev = nY;
     
-    if ( !bIsMouseDown ) {
-        nXMouseCurr = nYMouseCurr = 0;
+    document.getElementById("divDump2").innerHTML = "Drag start : " + nX + ", " + nY;
+}
+
+
+function handleEventDragEnd() {
+    if ( bIsDraging ) {
+        document.getElementById("divDump2").innerHTML = "Drag end";
+    }
+    bIsDraging = false;
+}
+
+
+function handleEventDraging(nX, nY) {
+    var nXDragCurr, nYDragCurr;
+    
+    if ( !bIsDraging ) {
+        nXDragCurr = nYDragCurr = 0;
         
         return;
     }
     
-    nXMouseCurr = event.clientX;
-    nYMouseCurr = event.clientY;
+    nXDragCurr = nX;
+    nYDragCurr = nY;
     
-    fXAngleCamera += ( nYMouseCurr - nYMousePrev ) * fSensible;
-    fZAngleCamera += ( nXMouseCurr - nXMousePrev ) * fSensible;
+    fXAngleCamera += ( nYDragCurr - nYDragPrev ) * fSensible;
+    fZAngleCamera += ( nXDragCurr - nXDragPrev ) * fSensible;
     
     if ( fXAngleCamera < -Math.PI / 2 * 0.95 ) {
         fXAngleCamera = -Math.PI / 2 * 0.95;
@@ -435,8 +442,10 @@ function handleEventMouseMove(event) {
         fZAngleCamera -= 2 * Math.PI;
     }
     
-    nXMousePrev = nXMouseCurr;
-    nYMousePrev = nYMouseCurr;
+    nXDragPrev = nXDragCurr;
+    nYDragPrev = nYDragCurr;
+    
+    document.getElementById("divDump2").innerHTML = "Draging : " + nX + ", " + nY;
 }
 
 
@@ -536,9 +545,36 @@ function myLaunchGL() {
     myCreatePolygons();
     myCreateStars();
     
-    canvasMain.onmousedown = handleEventMouseDown;
-    document.onmouseup = handleEventMouseUp;
-    document.onmousemove = handleEventMouseMove;
+    // Adding event listeners
+    // The first three are for mouse-draging and the followings are for touch
+    
+    canvasMain.addEventListener("mousedown", function(event) {
+        return handleEventDragStart(event.clientX, event.clientY);
+    }, false);
+    
+    document.addEventListener("mouseup", function(event) {
+        return handleEventDragEnd();
+    }, false);
+    
+    document.addEventListener("mousemove", function(event) {
+        return handleEventDraging(event.clientX, event.clientY);
+    }, false);
+    
+    canvasMain.addEventListener("touchstart", function(event) {
+        var objTouch = event.changedTouches[ 0 ];
+        
+        return handleEventDragStart(-objTouch.clientX, -objTouch.clientY);
+    }, false);
+    
+    document.addEventListener("touchend", function(event) {
+        return handleEventDragEnd();
+    }, false);
+    
+    document.addEventListener("touchmove", function(event) {
+        var objTouch = event.changedTouches[ 0 ];
+        
+        return handleEventDraging(-objTouch.clientX, -objTouch.clientY);
+    }, false);
     
     myDoTick();
 }
