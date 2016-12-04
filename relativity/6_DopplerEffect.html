@@ -7,7 +7,126 @@
 
 <script type="text/javascript" src = "relativity_createCube.js"></script>
 
-<script id="vscodeRelativity" type="x-shader/x-vertex">
+<script id = "fscodeRelativity" type = "x-shader/x-fragment">
+precision mediump float;
+
+uniform bool u_bTexture;
+uniform sampler2D u_Sampler;
+
+// The following uniform variables are added for Lorentz transformation
+uniform float u_fVelFrag;
+uniform float u_fGammaFrag;
+
+uniform bool u_bIsOnDopplerEff;
+
+varying vec3 vecLight;
+
+varying vec4 vecColor;
+varying vec2 vecTextureCoord;
+
+// The following varying variables are added for Lorentz transformation
+varying vec3 vecPosOrg;
+
+
+/*
+   The following two functions for HSL RGB are from 
+   
+   http://stackoverflow.com/questions/180/function-for-creating-color-wheels
+*/
+float myToRGB1(float fRm1, float fRm2, float fHue) {
+    if      (fHue > 360.0) fHue -= 360.0;
+    else if (fHue <   0.0) fHue += 360.0;
+    
+    if      (fHue <  60.0) fRm1 = fRm1 + (fRm2 - fRm1) * fHue / 60.0;
+    else if (fHue < 180.0) fRm1 = fRm2;
+    else if (fHue < 240.0) fRm1 = fRm1 + (fRm2 - fRm1) * (240.0 - fHue) / 60.0;
+    
+    return fRm1;
+}
+
+
+vec3 myHSLtoRGB(vec3 clrHSL) {
+    vec3 clrRGB;
+    
+    float fSaturation, fLuminance, fHue;
+    float fRm1, fRm2;
+    
+    fHue = clrHSL[ 0 ];
+    fSaturation = clrHSL[ 1 ];
+    fLuminance = clrHSL[ 2 ];
+    
+    if (fSaturation == 0.0) {
+        clrRGB[ 0 ] = clrRGB[ 1 ] = clrRGB[ 2 ] = fLuminance;
+    } else {
+        if (fLuminance <= 0.5) {
+            fRm2 = fLuminance + fLuminance * fSaturation;
+        } else {
+            fRm2 = fLuminance + fSaturation - fLuminance * fSaturation;
+        }
+        
+        fRm1 = 2.0 * fLuminance - fRm2;
+        
+        clrRGB[ 0 ] = myToRGB1(fRm1, fRm2, fHue + 120.0);
+        clrRGB[ 1 ] = myToRGB1(fRm1, fRm2, fHue);
+        clrRGB[ 2 ] = myToRGB1(fRm1, fRm2, fHue - 120.0);
+    }
+    
+    return clrRGB;
+}
+
+
+void main(void) {
+    vec4 vec4MainClr;
+    vec3 vecHSL;
+    
+    if ( u_bTexture ) {
+        vec4MainClr = texture2D(u_Sampler, vec2(vecTextureCoord.s, vecTextureCoord.t));
+    } else {
+        vec4MainClr = vecColor;
+    }
+    
+    // To treat the frequency we need to represent the color in HSL system
+    vecHSL = vec4MainClr.rgb;
+    
+    if ( u_bIsOnDopplerEff ) {
+        vec3 vecDir = normalize(vecPosOrg);
+        float fShiftPar;
+        
+        float fWavelength;
+        
+        // Calculating the factor from Doppler effect
+        // Note that the light 'comes' to the camera, the negative sign is needed
+        vecDir = normalize(vecPosOrg);
+        fShiftPar = u_fGammaFrag * 1.0 + u_fGammaFrag * u_fVelFrag * ( -vecDir[ 2 ] );
+        
+        // Do not forget wavelength = c / frequency
+        fWavelength = 650.0 - vecHSL[ 0 ] / 270.0 * ( 650.0 - 475.0 );
+        fWavelength /= fShiftPar;
+        vecHSL[ 0 ] = ( 650.0 - fWavelength ) * 270.0 / ( 650.0 - 475.0 );
+        
+        // There is cutoff -- infrared and ultraviolet.
+        
+        if ( -5.0 <= vecHSL[ 0 ] && vecHSL[ 0 ] <= 0.0 ) {
+            vecHSL[ 2 ] *= ( vecHSL[ 0 ] + 5.0 ) / 5.0;
+            vecHSL[ 0 ] = 0.0;
+        } else if ( 270.0 <= vecHSL[ 0 ] && vecHSL[ 0 ] <= 275.0 ) {
+            vecHSL[ 2 ] *= ( 275.0 - vecHSL[ 0 ] ) / 5.0;
+            vecHSL[ 0 ] = 270.0;
+        } else if ( -5.0 > vecHSL[ 0 ] || vecHSL[ 0 ] > 275.0 ) {
+            vecHSL[ 0 ] = 0.0;
+            vecHSL[ 1 ] = 0.0;
+            vecHSL[ 2 ] = 0.0;
+        }
+    }
+    
+    // Now our job is almost done while going back to the RGB is remaining
+    vec4MainClr.rgb = myHSLtoRGB(vecHSL);
+    
+    gl_FragColor = vec4(vec4MainClr.rgb * vecLight, vec4MainClr.a);
+}
+</script>
+
+<script id = "vscodeRelativity" type = "x-shader/x-vertex">
 attribute vec3 a_vec3VertexPosition;
 attribute vec3 a_vec3VertexNormal;
 attribute vec4 a_vec4VertexColor;
@@ -30,10 +149,10 @@ uniform bool u_bLight;
 uniform bool u_bColored;
 uniform bool u_bTexture;
 
-// The following three variables are added for Lorentz transformation
+// The following uniform variables are added for Lorentz transformation
 uniform vec3  u_vecPosCenter;
-uniform float u_fVel;
-uniform float u_fGamma;
+uniform float u_fVelVtx;
+uniform float u_fGammaVtx;
 
 uniform bool u_bIsStar;
 
@@ -42,6 +161,9 @@ varying vec3 vecLight;
 varying vec4 vecColor;
 varying vec2 vecTextureCoord;
 
+// The following varying variables are added for Lorentz transformation
+varying vec3 vecPosOrg;
+
 
 // This is the core code for Terrell-Penrose effect
 vec3 myTransformPos(vec3 vecPos) {
@@ -49,7 +171,7 @@ vec3 myTransformPos(vec3 vecPos) {
     
     vecRes[ 0 ] = vecPos[ 0 ];
     vecRes[ 1 ] = vecPos[ 1 ];
-    vecRes[ 2 ] = u_fGamma * vecPos[ 2 ] - u_fGamma * u_fVel * length(vecPos);
+    vecRes[ 2 ] = u_fGammaVtx * vecPos[ 2 ] - u_fGammaVtx * u_fVelVtx * length(vecPos);
     
     return vecRes;
 }
@@ -62,17 +184,15 @@ void main(void) {
     if ( !u_bIsStar ) {
         vec4PosWorld = u_matMVWorld * vec4(a_vec3VertexPosition, 1.0);
         
-        vecPosCalc[ 0 ] = vec4PosWorld[ 0 ];
-        vecPosCalc[ 1 ] = vec4PosWorld[ 1 ];
-        vecPosCalc[ 2 ] = vec4PosWorld[ 2 ];
+        vecPosCalc = vec4PosWorld.xyz - u_vecPosCenter;
+        // The extra factor is to minimize the nonlinear effect of the transformation
+        vecNorCalc = 0.005 * u_matNWorld * a_vec3VertexNormal + vecPosCalc;
         
-        vecPosCalc = vecPosCalc - u_vecPosCenter;
-        vecNorCalc = u_matNWorld * a_vec3VertexNormal + vecPosCalc;
+        vecPosOrg = vecPosCalc;
         
         vecPosCalc = myTransformPos(vecPosCalc);
         
         gl_Position = u_matP * u_matMV * vec4(vecPosCalc, 1.0);
-        
         vecNorCalc = normalize(myTransformPos(vecNorCalc) - vecPosCalc);
     } else {
         // This fR is not the actual distance.
@@ -98,7 +218,6 @@ void main(void) {
         }
         
         gl_Position = vec4PosWorld + vec4(a_vec2TextureCoord[ 0 ], a_vec2TextureCoord[ 1 ], 0.0, 0.0);
-        
         vecNorCalc = vec3(0.0, 0.0, 0.0); // In this case light is turned off
     }
     
@@ -148,12 +267,14 @@ var nXDragPrev = 0, nYDragPrev = 0;
 var fSensible = 0.003;
 var fXAngleCamera = 0, fZAngleCamera = 0;
 
-var cameraMatrix = mat4.create();
-
 // Momentum is used instead of velocity because of its more convenient range
 var gfMom;
+var bIsOnDopplerEff = true;
 
 var nTimeLast = 0;
+
+var bufMeshBtns;
+var fAreaXBtn, fAreaYBtn;
 
 
 function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
@@ -162,7 +283,7 @@ function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
     var matMVPoly = mat4.create();
     
     // This function calculate and make the information of vertices and mesh.
-    myBuildRectCuboid(pPoly, 1.0, 1.0, 1.0, arrColor, 0.1, 0.1, 0.1, vecPos, fSize);
+    myBuildRectCuboid(pPoly, 1.0, 1.0, 1.0, arrColor, 0.05, 0.05, 0.05, vecPos, fSize);
     
     // Putting them all into the mesh class
     bufMesh.insertVertexArray(glhMain, pPoly.getBufVtxOrg(), pPoly.getNumVtx());
@@ -193,14 +314,17 @@ function myCreatePolygons() {
     
     for ( i = 0 ; i < 100 ; i++ ) {
         // Setting color
-        arrColor[ 0 ] = arrColor[ 1 ] = arrColor[ 2 ] = 0.0;
+        // We use the HSL system
+        //arrColor[ 0 ] = arrColor[ 1 ] = arrColor[ 2 ] = 0.0;
+        arrColor[ 1 ] = 0.5;
+        arrColor[ 2 ] = 0.5;
         
         if ( i % 3 == 0 ) {
-            arrColor[ 0 ] = 1.0;
+            arrColor[ 0 ] = 0.0;
         } else if ( i % 3 == 1 ) {
-            arrColor[ 1 ] = 1.0;
+            arrColor[ 0 ] = 120.0;
         } else {
-            arrColor[ 2 ] = 1.0;
+            arrColor[ 0 ] = 240.0;
         }
         
         // In the following codes two cubes are pushed.
@@ -294,16 +418,68 @@ function myCreateStars() {
 }
 
 
+function myCreateBtnForMom() {
+    var arrVtx, arrIdx;
+    
+    var fPosXBtn, fPosYBtn;
+    var fOffsetBtns, fSizeBtn;
+    var fZ;
+    
+    fPosXBtn = 0.93;
+    fPosYBtn = -0.86;
+    
+    fOffsetBtns = 0.005;
+    fSizeBtn = 0.06;
+    
+    fZ = -1.0;
+    
+    arrVtx = [
+        fPosXBtn,            fPosYBtn - fOffsetBtns - 2 * fSizeBtn, fZ,  
+        fPosXBtn - fSizeBtn, fPosYBtn - fOffsetBtns,                fZ, 
+        fPosXBtn + fSizeBtn, fPosYBtn - fOffsetBtns,                fZ, 
+        fPosXBtn,            fPosYBtn + fOffsetBtns + 2 * fSizeBtn, fZ,  
+        fPosXBtn + fSizeBtn, fPosYBtn + fOffsetBtns,                fZ, 
+        fPosXBtn - fSizeBtn, fPosYBtn + fOffsetBtns,                fZ
+    ];
+    
+    arrIdx = [0, 1, 2, 3, 4, 5];
+    
+    bufMeshBtns = new MeshBuffer();
+    
+    bufMeshBtns.insertVertexArray(glhMain, arrVtx, 6);
+    bufMeshBtns.insertIndexArray(glhMain, arrIdx, 6);
+    bufMeshBtns.setUniformColor(glhMain, [30.0, 0.5, 0.5, 0.9]);
+    
+    fAreaXBtn = fPosXBtn - fSizeBtn;
+    fAreaYBtn = fPosYBtn + fOffsetBtns + 2 * fSizeBtn;
+    
+    return 0;
+}
+
+
 // Putting the information of observers into the shader program
 function mySetConfTransformation(vecPosCenter, gfVel, gfGamma, bIsStar) {
     var gl = glhMain.getGL();
     var shaderProgram = glhMain.getShaderProgram();
     
     gl.uniform3fv(shaderProgram.vecPosCenter, vecPosCenter);
-    gl.uniform1f(shaderProgram.fVel,   gfVel);
-    gl.uniform1f(shaderProgram.fGamma, gfGamma);
+    gl.uniform1f(shaderProgram.fVelVtx,   gfVel);
+    gl.uniform1f(shaderProgram.fGammaVtx, gfGamma);
+    
+    gl.uniform1f(shaderProgram.fVelFrag,   gfVel);
+    gl.uniform1f(shaderProgram.fGammaFrag, gfGamma);
     
     gl.uniform1i(shaderProgram.bIsStar, bIsStar);
+    
+    return 0;
+}
+
+
+function mySetModeDopplerEffect(bOnOff) {
+    var gl = glhMain.getGL();
+    var shaderProgram = glhMain.getShaderProgram();
+    
+    gl.uniform1i(shaderProgram.bIsOnDopplerEff, bOnOff);
     
     return 0;
 }
@@ -339,6 +515,27 @@ function myDrawStars(gfVel, gfGamma) {
 }
 
 
+// To draw the simple button some several codes are needed than we think
+function myDrawButtons() {
+    var mat3I, mat4I;
+    
+    mat3I = mat3.create();
+    mat3.identity(mat3I);
+    
+    mat4I = mat4.create();
+    mat4.identity(mat4I);
+    
+    mySetMatrixWorld(mat4I, mat3I);
+    mySetConfTransformation([0.0, 0.0, 0.0], 0.0, 1.0, false);
+    
+    glhMain.disableLight();
+    
+    bufMeshBtns.drawMesh(glhMain, mat4I, mat4I);
+    
+    return 0;
+}
+
+
 // Initializing the scene
 function myInitScene(gfVel, gfGamma) {
     glhMain.initDraw();
@@ -364,6 +561,7 @@ function myDrawScene(gfVel, gfGamma) {
     mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
     
     // Draw objects
+    mySetModeDopplerEffect(false); // Doppler effect is not applied to stars
     myDrawStars(gfVel, gfGamma);
     
     // Set the configuration for light
@@ -385,19 +583,40 @@ function myDrawScene(gfVel, gfGamma) {
     
     // Make configuration for drawing objects
     mySetConfTransformation(vecPosCamera, gfVel, gfGamma, false);
+    mySetModeDopplerEffect(bIsOnDopplerEff);
     
     // Draw objects
     for ( i = 0 ; i < arrObjs.length ; i++ ) {
         mySetMatrixWorld(arrObjs[ i ].getMatrixWorld(), arrObjs[ i ].getMatrixNormalWorld());
         arrObjs[ i ].getBufMesh().drawMesh(glhMain, pMatrix, mvMatrix);
     }
+    
+    // Draw buttons
+    myDrawButtons();
 }
 
 
 function handleEventDragStart(nX, nY) {
-    bIsDraging = true;
-    nXDragPrev = nX;
-    nYDragPrev = nY;
+    var canvasMain = document.getElementById("canvasMain");
+    
+    var fX, fY;
+    
+    fX = nX * 2.0 / canvasMain.width - 1.0;
+    fY = 1.0 - nY * 2.0 / canvasMain.height;
+    
+    if ( fX < fAreaXBtn || fY > fAreaYBtn ) {
+        bIsDraging = true;
+        nXDragPrev = nX;
+        nYDragPrev = nY;
+    } else {
+        if ( -( fY - fAreaYBtn ) < -( -1.0 - fAreaYBtn ) / 2.0 ) {
+            gfMom += 0.1;
+        } else {
+            gfMom -= 0.1;
+        }
+        
+        document.getElementById("inputtextMom").value = gfMom;
+    }
 }
 
 
@@ -447,10 +666,9 @@ function myMakeAnimation(gfVel) {
     
     var gfVel;
     
+    // What time is it?
     nTimeNow = new Date().getTime();
     nElapsed = 0;
-    
-    gfMom = document.getElementById("inputtextMom").value;
     
     // Calculating some variables with respect to the elapsed time
     if ( nTimeLast != 0) {
@@ -467,12 +685,18 @@ function myMakeAnimation(gfVel) {
 function myDoTick() {
     var gfVel, gfGamma;
     
+    // Running frame up
     requestAnimationFrame(myDoTick, 1000 / 60);
+    
+    // Getting all inputs
+    gfMom = parseFloat(document.getElementById("inputtextMom").value);
+    bIsOnDopplerEff = document.getElementById("inputchkboxDopplerEff").checked;
     
     // Calculating velocity (divided by c) and gamma from momentum ( / mass)
     gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
     gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
     
+    // Okay, do it
     myInitScene(gfVel, gfGamma);
     myDrawScene(gfVel, gfGamma);
     myMakeAnimation(gfVel);
@@ -484,10 +708,13 @@ function myDoTick() {
 
 
 function mySetupGLHeaderForRelativity() {
-    var strShaderVtxCode = "";
+    var strShaderVtxCode;
+    var strShaderFragCode;
     
     var objNext;
     
+    // Loading the vertex shader code
+    strShaderVtxCode = "";
     objNext = document.getElementById("vscodeRelativity").firstChild;
     
     while ( objNext ) {
@@ -498,18 +725,37 @@ function mySetupGLHeaderForRelativity() {
         objNext = objNext.nextSibling;
     }
     
-    //glhMain.setShaderCodeVtx(g_strShaderCodeVtxRelativity);
     glhMain.setShaderCodeVtx(strShaderVtxCode);
     
+    // Loading the fragment shader code
+    strShaderFragCode = "";
+    objNext = document.getElementById("fscodeRelativity").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderFragCode += objNext.textContent;
+        }
+        
+        objNext = objNext.nextSibling;
+    }
+    
+    glhMain.setShaderCodeFrag(strShaderFragCode);
+    
+    // Getting points for accessing the variables of shaders
     glhMain.setFuncExtraVariables(function(gl, shaderProgram) {
         shaderProgram.matMVWorld = gl.getUniformLocation(shaderProgram, "u_matMVWorld");
         shaderProgram.matNWorld  = gl.getUniformLocation(shaderProgram, "u_matNWorld");
         
         shaderProgram.vecPosCenter = gl.getUniformLocation(shaderProgram, "u_vecPosCenter");
-        shaderProgram.fVel         = gl.getUniformLocation(shaderProgram, "u_fVel");
-        shaderProgram.fGamma       = gl.getUniformLocation(shaderProgram, "u_fGamma");
+        shaderProgram.fVelVtx      = gl.getUniformLocation(shaderProgram, "u_fVelVtx");
+        shaderProgram.fGammaVtx    = gl.getUniformLocation(shaderProgram, "u_fGammaVtx");
         
-        shaderProgram.bIsStar      = gl.getUniformLocation(shaderProgram, "u_bIsStar");
+        shaderProgram.fVelFrag   = gl.getUniformLocation(shaderProgram, "u_fVelFrag");
+        shaderProgram.fGammaFrag = gl.getUniformLocation(shaderProgram, "u_fGammaFrag");
+        
+        shaderProgram.bIsStar = gl.getUniformLocation(shaderProgram, "u_bIsStar");
+        
+        shaderProgram.bIsOnDopplerEff = gl.getUniformLocation(shaderProgram, "u_bIsOnDopplerEff");
         
         return 0;
     });
@@ -520,8 +766,6 @@ function mySetupGLHeaderForRelativity() {
 
 function myLaunchGL() {
     var canvasMain = document.getElementById("canvasMain");
-    
-    mat4.identity(cameraMatrix);
     
     // Size of star = 2 px * 2 px
     fSizeStarX = 2.0 / canvasMain.width;
@@ -537,6 +781,7 @@ function myLaunchGL() {
     
     myCreatePolygons();
     myCreateStars();
+    myCreateBtnForMom();
     
     // Adding event listeners
     // The first three are for mouse-draging and the followings are for touch
@@ -554,6 +799,12 @@ function myLaunchGL() {
     }, false);
     
     canvasMain.addEventListener("touchstart", function(event) {
+        var objTouch;
+        
+        if ( event.changedTouches.length != 1 ) {
+            return 0;
+        }
+        
         var objTouch = event.changedTouches[ 0 ];
         
         return handleEventDragStart(-objTouch.clientX, -objTouch.clientY);
@@ -564,7 +815,13 @@ function myLaunchGL() {
     }, false);
     
     document.addEventListener("touchmove", function(event) {
-        var objTouch = event.changedTouches[ 0 ];
+        var objTouch;
+        
+        if ( event.changedTouches.length != 1 ) {
+            return 0;
+        }
+        
+        objTouch = event.changedTouches[ 0 ];
         
         return handleEventDraging(-objTouch.clientX, -objTouch.clientY);
     }, false);
@@ -592,8 +849,11 @@ function myResetAll() {
 This browser does not suppot HTML5. Upgrade it.
 </canvas>
 <br>
-<div>Momentum / m<sub>observer</sub>c = <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
-<input type = "button" value = "Reset" onclick = "myResetAll()"></div>
+<div>
+Momentum / m<sub>observer</sub>c = <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
+<label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
+<input type = "button" value = "Reset" onclick = "myResetAll()">
+</div>
 <div id = "divDump"></div>
 <div id = "divDump2"></div>
 </body>

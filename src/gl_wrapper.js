@@ -174,7 +174,7 @@ glHeader.prototype.initShaders = function() {
 
 glHeader.prototype.initGL = function(canvas) {
     try {
-        this.gl = canvas.getContext("experimental-webgl");
+        this.gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
         this.gl.viewportWidth  = canvas.width;
         this.gl.viewportHeight = canvas.height;
     } catch (e) {
