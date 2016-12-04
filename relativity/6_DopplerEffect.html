@@ -186,7 +186,7 @@ void main(void) {
         
         vecPosCalc = vec4PosWorld.xyz - u_vecPosCenter;
         // The extra factor is to minimize the nonlinear effect of the transformation
-        vecNorCalc = 0.005 * u_matNWorld * a_vec3VertexNormal + vecPosCalc;
+        vecNorCalc = 0.05 * u_matNWorld * a_vec3VertexNormal + vecPosCalc;
         
         vecPosOrg = vecPosCalc;
         
@@ -448,7 +448,7 @@ function myCreateBtnForMom() {
     
     bufMeshBtns.insertVertexArray(glhMain, arrVtx, 6);
     bufMeshBtns.insertIndexArray(glhMain, arrIdx, 6);
-    bufMeshBtns.setUniformColor(glhMain, [30.0, 0.5, 0.5, 0.9]);
+    bufMeshBtns.setUniformColor(glhMain, [10.0, 0.7, 0.6, 0.3]);
     
     fAreaXBtn = fPosXBtn - fSizeBtn;
     fAreaYBtn = fPosYBtn + fOffsetBtns + 2 * fSizeBtn;

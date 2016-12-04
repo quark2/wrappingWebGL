@@ -313,6 +313,10 @@ glHeader.prototype.initDraw = function() {
     
     glCurr.viewport(0, 0, glCurr.viewportWidth, glCurr.viewportHeight);
     glCurr.clear(glCurr.COLOR_BUFFER_BIT | glCurr.DEPTH_BUFFER_BIT);
+    glCurr.enable(glCurr.DEPTH_TEST);
+    
+    glCurr.blendFunc(glCurr.SRC_ALPHA, glCurr.ONE_MINUS_SRC_ALPHA);
+    glCurr.enable(glCurr.BLEND);
 }
 
 
