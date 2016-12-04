@@ -30,10 +30,10 @@ g_strShaderCodeFrag =
    "}\n";
 
 g_strShaderCodeVtx = 
-   "attribute vec3 a_VertexPosition;\n" + 
-   "attribute vec4 a_VertexColor;\n" + 
-   "attribute vec3 a_VertexNormal;\n" + 
-   "attribute vec2 a_TextureCoord;\n" + 
+   "attribute vec3 a_vec3VertexPosition;\n" + 
+   "attribute vec4 a_vec3VertexColor;\n" + 
+   "attribute vec3 a_vec4VertexNormal;\n" + 
+   "attribute vec2 a_vec2TextureCoord;\n" + 
    "\n" + 
    "uniform mat4 u_matP;\n" + 
    "uniform mat4 u_matMV;\n" + 
@@ -55,18 +55,18 @@ g_strShaderCodeVtx =
    "varying vec2 vecTextureCoord;\n" + 
    "\n" + 
    "void main(void) {\n" + 
-   "    gl_Position = u_matP * u_matMV * vec4(a_VertexPosition, 1.0);\n" + 
+   "    gl_Position = u_matP * u_matMV * vec4(a_vec3VertexPosition, 1.0);\n" + 
    "    \n" + 
    "    if ( u_bLight ) {\n" + 
-   "        vec3 vec3NorTrans = u_matN * a_VertexNormal;\n" + 
+   "        vec3 vec3NorTrans = u_matN * a_vec3VertexNormal;\n" + 
    "        float fWeightDir = max(dot(vec3NorTrans, u_vecDirLight), 0.0);\n" + 
    "        vecLight = u_vecClrAmb + u_vecClrDir * fWeightDir;\n" + 
    "    } else {\n" + 
    "        vecLight = vec3(1.0, 1.0, 1.0);\n" + 
    "    }\n" + 
    "    \n" + 
-   "    vecColor = ( u_bColored ? a_VertexColor : u_vecClrUniform );\n" + 
-   "    vecTextureCoord = a_TextureCoord;\n" + 
+   "    vecColor = ( u_bColored ? a_vec4VertexColor : u_vecClrUniform );\n" + 
+   "    vecTextureCoord = a_vec2TextureCoord;\n" + 
    "}\n";
 
 
@@ -137,19 +137,19 @@ glHeader.prototype.initShaders = function() {
     this.gl.useProgram(this.shaderProgram);
     
     this.shaderProgram.vertexPositionAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "a_VertexPosition");
+        "a_vec3VertexPosition");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexPositionAttribute);
     
     this.shaderProgram.vertexNormalAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "a_VertexNormal");
+        "a_vec3VertexNormal");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexNormalAttribute);
     
     this.shaderProgram.vertexColorAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "a_VertexColor");
+        "a_vec4VertexColor");
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexColorAttribute);
     
     this.shaderProgram.textureCoordAttribute = this.gl.getAttribLocation(this.shaderProgram, 
-        "a_TextureCoord");
+        "a_vec2TextureCoord");
     this.gl.enableVertexAttribArray(this.shaderProgram.textureCoordAttribute);
     
     this.shaderProgram.pMatrixUniform  = this.gl.getUniformLocation(this.shaderProgram, "u_matP");
