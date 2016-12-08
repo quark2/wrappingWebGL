@@ -195,22 +195,7 @@ void main(void) {
         gl_Position = u_matP * u_matMV * vec4(vecPosCalc, 1.0);
         vecNorCalc = normalize(myTransformPos(vecNorCalc) - vecPosCalc);
     } else {
-        // This fR is not the actual distance.
-        // Actually, the distance from stars is irrelevant.
-        float fR = 0.1;
-        
-        float fCosTheta, fSinTheta, fCosPhi, fSinPhi;
-        
-        fCosTheta = cos(a_vec3VertexPosition[ 0 ]);
-        fSinTheta = sin(a_vec3VertexPosition[ 0 ]);
-        fCosPhi   = cos(a_vec3VertexPosition[ 1 ]);
-        fSinPhi   = sin(a_vec3VertexPosition[ 1 ]);
-        
-        vecPosCalc[ 0 ] = fR * fSinTheta * fCosPhi;
-        vecPosCalc[ 1 ] = fR * fSinTheta * fSinPhi;
-        vecPosCalc[ 2 ] = fR * fCosTheta;
-        
-        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(vecPosCalc), 1.0);
+        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(a_vec3VertexPosition), 1.0);
         vec4PosWorld /= vec4PosWorld[ 3 ];
         
         if ( vec4PosWorld[ 2 ] < 1.0 ) {
@@ -354,7 +339,9 @@ function myCreatePolygons() {
 function myCreateStars() {
     var i;
     
-    var fTheta, fPhi;
+    var fR, fTheta, fPhi;
+    var fCosTheta, fSinTheta, fCosPhi, fSinPhi;
+    var fX, fY, fZ;
     
     var arrVtx, arrIdx, arrTex;
     
@@ -363,26 +350,37 @@ function myCreateStars() {
     arrTex = new Array();
     arrIdx = new Array();
     
+    fR = 0.1;
+    
     for ( i = 0 ; i < nNumStars ; i++ ) {
         // Setting positions of stars randomly
         fTheta = Math.acos(2 * Math.random() - 1);
         fPhi   = 2.0 * Math.PI * Math.random();
         
-        arrVtx.push(fTheta);
-        arrVtx.push(fPhi);
-        arrVtx.push(1.0);
+        fCosTheta = Math.cos(fTheta);
+        fSinTheta = Math.sin(fTheta);
+        fCosPhi   = Math.cos(fPhi);
+        fSinPhi   = Math.sin(fPhi);
         
-        arrVtx.push(fTheta);
-        arrVtx.push(fPhi);
-        arrVtx.push(2.0);
+        fX = fR * fSinTheta * fCosPhi;
+        fY = fR * fSinTheta * fSinPhi;
+        fZ = fR * fCosTheta;
         
-        arrVtx.push(fTheta);
-        arrVtx.push(fPhi);
-        arrVtx.push(3.0);
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
         
-        arrVtx.push(fTheta);
-        arrVtx.push(fPhi);
-        arrVtx.push(4.0);
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
+        
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
+        
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
         
         arrTex.push(-fSizeStarX);
         arrTex.push(-fSizeStarY);
