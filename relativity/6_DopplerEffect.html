@@ -1,6 +1,5 @@
 <html>
 <head>
-
 <script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
 
 <script type="text/javascript" src = "../src/gl_wrapper.js"></script>
@@ -259,7 +258,7 @@ var bIsOnDopplerEff = true;
 var nTimeLast = 0;
 
 var bufMeshBtns;
-var fAreaXBtn, fAreaYBtn;
+var fSizeBtn;
 
 
 function myCreateMeshFromPolygon(pPoly, vecPos, fSize, arrColor) {
@@ -419,25 +418,19 @@ function myCreateStars() {
 function myCreateBtnForMom() {
     var arrVtx, arrIdx;
     
-    var fPosXBtn, fPosYBtn;
-    var fOffsetBtns, fSizeBtn;
-    var fZ;
+    var fOffsetBtns, fZ;
     
-    fPosXBtn = 0.93;
-    fPosYBtn = -0.86;
-    
-    fOffsetBtns = 0.005;
-    fSizeBtn = 0.06;
-    
+    fOffset = 0.005;
+    fSizeBtn = 0.12;
     fZ = -1.0;
     
     arrVtx = [
-        fPosXBtn,            fPosYBtn - fOffsetBtns - 2 * fSizeBtn, fZ,  
-        fPosXBtn - fSizeBtn, fPosYBtn - fOffsetBtns,                fZ, 
-        fPosXBtn + fSizeBtn, fPosYBtn - fOffsetBtns,                fZ, 
-        fPosXBtn,            fPosYBtn + fOffsetBtns + 2 * fSizeBtn, fZ,  
-        fPosXBtn + fSizeBtn, fPosYBtn + fOffsetBtns,                fZ, 
-        fPosXBtn - fSizeBtn, fPosYBtn + fOffsetBtns,                fZ
+        -1.0 + fSizeBtn / 2.0 + fOffset, -1.0 + fOffset + fSizeBtn, fZ, 
+        -1.0 + fSizeBtn       + fOffset, -1.0 + fOffset,            fZ, 
+        -1.0                  + fOffset, -1.0 + fOffset,            fZ, 
+         1.0 - fSizeBtn / 2.0 - fOffset, -1.0 + fOffset,            fZ, 
+         1.0 - fSizeBtn       - fOffset, -1.0 + fOffset + fSizeBtn, fZ, 
+         1.0                  - fOffset, -1.0 + fOffset + fSizeBtn, fZ
     ];
     
     arrIdx = [0, 1, 2, 3, 4, 5];
@@ -447,9 +440,6 @@ function myCreateBtnForMom() {
     bufMeshBtns.insertVertexArray(glhMain, arrVtx, 6);
     bufMeshBtns.insertIndexArray(glhMain, arrIdx, 6);
     bufMeshBtns.setUniformColor(glhMain, [10.0, 0.7, 0.6, 0.3]);
-    
-    fAreaXBtn = fPosXBtn - fSizeBtn;
-    fAreaYBtn = fPosYBtn + fOffsetBtns + 2 * fSizeBtn;
     
     return 0;
 }
@@ -594,24 +584,41 @@ function myDrawScene(gfVel, gfGamma) {
 }
 
 
-function handleEventDragStart(nX, nY) {
+function myIsClickOnBtn(fX, fY, bIsTouch) {
+    var fScale;
+    
+    fScale = ( bIsTouch ? 1.5 : 1.0 );
+    
+    if ( fY <= -1.0 + fSizeBtn * fScale ) {
+        if ( fX <= -1.0 + fSizeBtn * fScale ) {
+            return 1;
+        } else if ( fX >= 1.0 - fSizeBtn * fScale ) {
+            return -1;
+        }
+    }
+    
+    return 0;
+}
+
+
+function handleEventDragStart(nX, nY, nRelX, nRelY, bIsTouch) {
     var canvasMain = document.getElementById("canvasMain");
     
     var fX, fY;
     
-    fX = nX * 2.0 / canvasMain.width - 1.0;
-    fY = 1.0 - nY * 2.0 / canvasMain.height;
+    var nStateBtn;
     
-    if ( fX < fAreaXBtn || fY > fAreaYBtn ) {
+    fX = nRelX * 2.0 / canvasMain.width - 1.0;
+    fY = 1.0 - nRelY * 2.0 / canvasMain.height;
+    
+    nStateBtn = myIsClickOnBtn(fX, fY, bIsTouch);
+    
+    if ( nStateBtn == 0 ) {
         bIsDraging = true;
         nXDragPrev = nX;
         nYDragPrev = nY;
     } else {
-        if ( -( fY - fAreaYBtn ) < -( -1.0 - fAreaYBtn ) / 2.0 ) {
-            gfMom += 0.1;
-        } else {
-            gfMom -= 0.1;
-        }
+        gfMom += 0.1 * nStateBtn;
         
         document.getElementById("inputtextMom").value = gfMom;
     }
@@ -700,8 +707,8 @@ function myDoTick() {
     myMakeAnimation(gfVel);
     
     // Dumping informations (momentum, velocity, gamma)
-    document.getElementById("divDump").innerHTML = 
-        "Velocity = " + gfVel + "<br>Gamma = " + gfGamma;
+    document.getElementById("divOutVel").innerHTML =   "Velocity = " + gfVel + "&nbsp;&nbsp;";
+    document.getElementById("divOutGamma").innerHTML = "Gamma = "    + gfGamma;
 }
 
 
@@ -785,7 +792,8 @@ function myLaunchGL() {
     // The first three are for mouse-draging and the followings are for touch
     
     canvasMain.addEventListener("mousedown", function(event) {
-        return handleEventDragStart(event.clientX, event.clientY);
+        return handleEventDragStart(event.clientX, event.clientY, 
+            event.pageX - this.offsetLeft, event.pageY - this.offsetTop, false);
     }, false);
     
     document.addEventListener("mouseup", function(event) {
@@ -805,7 +813,8 @@ function myLaunchGL() {
         
         var objTouch = event.changedTouches[ 0 ];
         
-        return handleEventDragStart(-objTouch.clientX, -objTouch.clientY);
+        return handleEventDragStart(-objTouch.clientX, -objTouch.clientY, 
+            objTouch.pageX - this.offsetLeft, objTouch.pageY - this.offsetTop, true);
     }, false);
     
     document.addEventListener("touchend", function(event) {
@@ -852,8 +861,13 @@ Momentum / m<sub>observer</sub>c = <input type = "number" id = "inputtextMom" st
 <label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
 <input type = "button" value = "Reset" onclick = "myResetAll()">
 </div>
-<div id = "divDump"></div>
-<div id = "divDump2"></div>
+<table border = 0 cellpadding = 0 cellspacing = 0>
+<tr>
+<td width = 320 style = "white-space: nowrap;"><div id = "divOutVel"></div></td>
+<td><div id = "divOutGamma"></div></td>
+</tr>
+</table>
+<div id = "divDump2">a<br>a<br>a<br>a<br></div>
 </body>
 </html>
 
