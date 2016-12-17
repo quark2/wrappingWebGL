@@ -1,0 +1,902 @@
+<html>
+<head>
+<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+
+<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
+
+<script id = "fscodeRelativity" type = "x-shader/x-fragment">
+precision mediump float;
+
+uniform bool u_bTexture;
+uniform sampler2D u_Sampler;
+
+// The following uniform variables are added for Lorentz transformation
+uniform float u_fVelFrag;
+uniform float u_fGammaFrag;
+
+uniform bool u_bIsOnDopplerEff;
+
+varying vec3 vecLight;
+
+varying vec4 vecColor;
+varying vec2 vecTextureCoord;
+
+// The following varying variables are added for Lorentz transformation
+varying vec3 vecPosOrg;
+
+
+/*
+   The following two functions for HSL RGB are from 
+   
+   http://stackoverflow.com/questions/180/function-for-creating-color-wheels
+*/
+float myToRGB1(float fRm1, float fRm2, float fHue) {
+    if      (fHue > 360.0) fHue -= 360.0;
+    else if (fHue <   0.0) fHue += 360.0;
+    
+    if      (fHue <  60.0) fRm1 = fRm1 + (fRm2 - fRm1) * fHue / 60.0;
+    else if (fHue < 180.0) fRm1 = fRm2;
+    else if (fHue < 240.0) fRm1 = fRm1 + (fRm2 - fRm1) * (240.0 - fHue) / 60.0;
+    
+    return fRm1;
+}
+
+
+vec3 myHSLtoRGB(vec3 clrHSL) {
+    vec3 clrRGB;
+    
+    float fSaturation, fLuminance, fHue;
+    float fRm1, fRm2;
+    
+    fHue = clrHSL[ 0 ];
+    fSaturation = clrHSL[ 1 ];
+    fLuminance = clrHSL[ 2 ];
+    
+    if (fSaturation == 0.0) {
+        clrRGB[ 0 ] = clrRGB[ 1 ] = clrRGB[ 2 ] = fLuminance;
+    } else {
+        if (fLuminance <= 0.5) {
+            fRm2 = fLuminance + fLuminance * fSaturation;
+        } else {
+            fRm2 = fLuminance + fSaturation - fLuminance * fSaturation;
+        }
+        
+        fRm1 = 2.0 * fLuminance - fRm2;
+        
+        clrRGB[ 0 ] = myToRGB1(fRm1, fRm2, fHue + 120.0);
+        clrRGB[ 1 ] = myToRGB1(fRm1, fRm2, fHue);
+        clrRGB[ 2 ] = myToRGB1(fRm1, fRm2, fHue - 120.0);
+    }
+    
+    return clrRGB;
+}
+
+
+void main(void) {
+    vec4 vec4MainClr;
+    vec3 vecHSL;
+    
+    if ( u_bTexture ) {
+        vec4MainClr = texture2D(u_Sampler, vec2(vecTextureCoord.s, vecTextureCoord.t));
+    } else {
+        vec4MainClr = vecColor;
+    }
+    
+    // To treat the frequency we need to represent the color in HSL system
+    vecHSL = vec4MainClr.rgb;
+    
+    if ( u_bIsOnDopplerEff ) {
+        vec3 vecDir = normalize(vecPosOrg);
+        float fShiftPar;
+        
+        float fWavelength;
+        
+        // Calculating the factor from Doppler effect
+        // Note that the light 'comes' to the camera, the negative sign is needed
+        vecDir = normalize(vecPosOrg);
+        fShiftPar = u_fGammaFrag * 1.0 + u_fGammaFrag * u_fVelFrag * ( -vecDir[ 2 ] );
+        
+        // Do not forget wavelength = c / frequency
+        fWavelength = 650.0 - vecHSL[ 0 ] / 270.0 * ( 650.0 - 475.0 );
+        fWavelength /= fShiftPar;
+        vecHSL[ 0 ] = ( 650.0 - fWavelength ) * 270.0 / ( 650.0 - 475.0 );
+        
+        // There is cutoff -- infrared and ultraviolet.
+        
+        if ( -5.0 <= vecHSL[ 0 ] && vecHSL[ 0 ] <= 0.0 ) {
+            vecHSL[ 2 ] *= ( vecHSL[ 0 ] + 5.0 ) / 5.0;
+            vecHSL[ 0 ] = 0.0;
+        } else if ( 270.0 <= vecHSL[ 0 ] && vecHSL[ 0 ] <= 275.0 ) {
+            vecHSL[ 2 ] *= ( 275.0 - vecHSL[ 0 ] ) / 5.0;
+            vecHSL[ 0 ] = 270.0;
+        } else if ( -5.0 > vecHSL[ 0 ] || vecHSL[ 0 ] > 275.0 ) {
+            vecHSL[ 0 ] = 0.0;
+            vecHSL[ 1 ] = 0.0;
+            vecHSL[ 2 ] = 0.0;
+        }
+    }
+    
+    // Now our job is almost done while going back to the RGB is remaining
+    vec4MainClr.rgb = myHSLtoRGB(vecHSL);
+    
+    gl_FragColor = vec4(vec4MainClr.rgb * vecLight, vec4MainClr.a);
+}
+</script>
+
+<script id = "vscodeRelativity" type = "x-shader/x-vertex">
+attribute vec3 a_vec3VertexPosition;
+attribute vec3 a_vec3VertexNormal;
+attribute vec4 a_vec4VertexColor;
+attribute vec2 a_vec2TextureCoord;
+
+uniform mat4 u_matP;
+uniform mat4 u_matMV;
+uniform mat3 u_matN;
+
+uniform mat4 u_matMVWorld;
+uniform mat3 u_matNWorld;
+
+uniform vec4 u_vecClrUniform;
+
+uniform vec3 u_vecClrAmb;
+uniform vec3 u_vecClrDir;
+uniform vec3 u_vecDirLight;
+
+uniform bool u_bLight;
+uniform bool u_bColored;
+uniform bool u_bTexture;
+
+// The following uniform variables are added for Lorentz transformation
+uniform vec3  u_vecPosCenter;
+uniform float u_fVelVtx;
+uniform float u_fGammaVtx;
+
+uniform bool u_bIsStar;
+
+varying vec3 vecLight;
+
+varying vec4 vecColor;
+varying vec2 vecTextureCoord;
+
+// The following varying variables are added for Lorentz transformation
+varying vec3 vecPosOrg;
+
+
+// This is the core code for Terrell-Penrose effect
+vec3 myTransformPos(vec3 vecPos) {
+    vec3 vecRes;
+    
+    vecRes[ 0 ] = vecPos[ 0 ];
+    vecRes[ 1 ] = vecPos[ 1 ];
+    vecRes[ 2 ] = u_fGammaVtx * vecPos[ 2 ] - u_fGammaVtx * u_fVelVtx * length(vecPos);
+    
+    return vecRes;
+}
+
+
+void main(void) {
+    vec4 vec4PosWorld;
+    vec3 vecPosCalc, vecNorCalc;
+    
+    if ( !u_bIsStar ) {
+        vec4PosWorld = u_matMVWorld * vec4(a_vec3VertexPosition, 1.0);
+        
+        vecPosCalc = vec4PosWorld.xyz - u_vecPosCenter;
+        // The extra factor is to minimize the nonlinear effect of the transformation
+        vecNorCalc = 0.05 * u_matNWorld * a_vec3VertexNormal + vecPosCalc;
+        
+        vecPosOrg = vecPosCalc;
+        
+        vecPosCalc = myTransformPos(vecPosCalc);
+        
+        gl_Position = u_matP * u_matMV * vec4(vecPosCalc, 1.0);
+        vecNorCalc = normalize(myTransformPos(vecNorCalc) - vecPosCalc);
+    } else {
+        vec4PosWorld = u_matP * u_matMV * vec4(myTransformPos(a_vec3VertexPosition), 1.0);
+        vec4PosWorld /= vec4PosWorld[ 3 ];
+        
+        if ( vec4PosWorld[ 2 ] < 1.0 ) {
+            vec4PosWorld[ 2 ] = 0.9999999;
+        }
+        
+        gl_Position = vec4PosWorld + vec4(a_vec2TextureCoord[ 0 ], a_vec2TextureCoord[ 1 ], 0.0, 0.0);
+        vecNorCalc = vec3(0.0, 0.0, 0.0); // In this case light is turned off
+    }
+    
+    if ( u_bLight ) {
+        vec3 vec3NorTrans = u_matN * vecNorCalc;
+        float fWeightDir = max(dot(vec3NorTrans, u_vecDirLight), 0.0);
+        vecLight = u_vecClrAmb + u_vecClrDir * fWeightDir;
+    } else {
+        vecLight = vec3(1.0, 1.0, 1.0);
+    }
+    
+    vecColor = ( u_bColored ? a_vec4VertexColor : u_vecClrUniform );
+    vecTextureCoord = a_vec2TextureCoord;
+}
+</script>
+
+<script language = "javascript">
+var glhMain;
+
+var fFFar = 32 * 1048576.0;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var bOnLight;
+
+var vec3ColorAmb = [0.4, 0.4, 0.4];
+var vec3ColorDir = [1.0, 1.0, 1.0];
+var vec3DirLight = [-0.25, -0.25, -1.0];
+
+var vecPosCamera = [0.0, 0.0, 0.0];
+
+var arrObjs = [];
+var arrStars = [];
+
+var bufMeshStar;
+var arrVtxStar;
+
+var nNumStars = 16384;
+var fSizeStarX = 0.002;
+var fSizeStarY = 0.002;
+
+var bIsDraging = false;
+
+var nXDragPrev = 0, nYDragPrev = 0;
+
+var fSensible = 0.003;
+var fXAngleCamera = 0, fZAngleCamera = 0;
+
+// Momentum is used instead of velocity because of its more convenient range
+var gfMom;
+var bIsOnDopplerEff = true;
+
+var nTimeLast = 0;
+
+var bufMeshBtns;
+var fSizeBtn;
+
+var bIsLoading = true;
+
+
+function myRemovePolygon(bufMesh) {
+    
+    
+    return 0;
+}
+
+
+function myLoadWorldFromJSON(strDataJSON) {
+    var i;
+    
+    var bufMesh;
+    
+    var pData;
+    
+    var nIdxOrg;
+    var objPolyData;
+    var arrBufColors;
+    
+    var nNumVtx, nNumFace;
+    
+    var matMVPoly, mat3Nor;
+    
+    // Clear previous objects
+    for ( ; arrObjs.length > 0 ; ) {
+        bufMesh = arrObjs.pull();
+        
+        myRemovePolygon(bufMesh);
+        delete bufMesh;
+    }
+    
+    pData = JSON.parse(strDataJSON);
+    
+    for ( i = 0 ; i < pData.objs.length ; i++ ) {
+        bufMesh = new MeshBuffer();
+        
+        nNumVtx = pData.objs[ i ].numVtx;
+        nNumFace = pData.objs[ i ].numFaces;
+        
+        nIdxOrg = pData.objs[ i ].SameBefore;
+        objPolyData = pData.objs[ ( nIdxOrg == -1 ? i : nIdxOrg ) ];
+        
+        bufMesh.insertVertexArray(glhMain, objPolyData.vertices, nNumVtx);
+        bufMesh.insertIndexArray(glhMain, objPolyData.indices, 3 * nNumFace);
+        bufMesh.insertNormalArray(glhMain, objPolyData.normals, nNumVtx);
+        
+        arrBufColors = ( pData.objs[ i ].colors.length != 0 ? 
+            pData.objs[ i ].colors : objPolyData.colors );
+        
+        if ( arrBufColors.length == 4 * nNumVtx ) {
+            bufMesh.insertColorArray(glhMain, arrBufColors, nNumVtx);
+        } else {
+            bufMesh.setUniformColor(glhMain, arrBufColors);
+        }
+        
+        matMVPoly = mat4.create();
+        mat4.identity(matMVPoly);
+        
+        mat4.scale(matMVPoly, pData.objs[ i ].scales);
+        //mat4.rotation(matMVPoly, pData.objs[ i ].scales);
+        mat4.translate(matMVPoly, pData.objs[ i ].position);
+        
+        bufMesh.matMVWorld = matMVPoly;
+        
+        mat3Nor = mat3.create();
+        mat4.toInverseMat3(matMVPoly, mat3Nor);
+        mat3.transpose(mat3Nor);
+        
+        bufMesh.matMVWorldNormal = mat3Nor;
+        
+        arrObjs.push(bufMesh);
+    }
+    
+    bIsLoading = false;
+    
+    return 0;
+}
+
+
+function myCreateStars() {
+    var i;
+    
+    var fR, fTheta, fPhi;
+    var fCosTheta, fSinTheta, fCosPhi, fSinPhi;
+    var fX, fY, fZ;
+    
+    var arrVtx, arrIdx, arrTex;
+    
+    // Creating polygon for stars
+    arrVtx = new Array();
+    arrTex = new Array();
+    arrIdx = new Array();
+    
+    fR = 0.1;
+    
+    for ( i = 0 ; i < nNumStars ; i++ ) {
+        // Setting positions of stars randomly
+        fTheta = Math.acos(2 * Math.random() - 1);
+        fPhi   = 2.0 * Math.PI * Math.random();
+        
+        fCosTheta = Math.cos(fTheta);
+        fSinTheta = Math.sin(fTheta);
+        fCosPhi   = Math.cos(fPhi);
+        fSinPhi   = Math.sin(fPhi);
+        
+        fX = fR * fSinTheta * fCosPhi;
+        fY = fR * fSinTheta * fSinPhi;
+        fZ = fR * fCosTheta;
+        
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
+        
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
+        
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
+        
+        arrVtx.push(fX);
+        arrVtx.push(fY);
+        arrVtx.push(fZ);
+        
+        arrTex.push(-fSizeStarX);
+        arrTex.push(-fSizeStarY);
+        
+        arrTex.push( fSizeStarX);
+        arrTex.push(-fSizeStarY);
+        
+        arrTex.push(-fSizeStarX);
+        arrTex.push( fSizeStarY);
+        
+        arrTex.push( fSizeStarX);
+        arrTex.push( fSizeStarY);
+        
+        arrIdx.push(4 * i + 0);
+        arrIdx.push(4 * i + 1);
+        arrIdx.push(4 * i + 2);
+        
+        arrIdx.push(4 * i + 1);
+        arrIdx.push(4 * i + 3);
+        arrIdx.push(4 * i + 2);
+    }
+    
+    // Create mesh for stars
+    bufMeshStar = new MeshBuffer();
+    
+    bufMeshStar.insertVertexArray(glhMain, arrVtx, 4 * nNumStars);
+    bufMeshStar.insertIndexArray(glhMain, arrIdx, 3 * 2 * nNumStars);
+    bufMeshStar.insertTextureArray(glhMain, arrTex, 2 * nNumStars);
+    
+    bufMeshStar.disableTextureMode();
+    
+    return 0;
+}
+
+
+function myCreateBtnForMom() {
+    var arrVtx, arrIdx;
+    
+    var fOffsetBtns, fZ;
+    
+    fOffset = 0.005;
+    fSizeBtn = 0.12;
+    fZ = -1.0;
+    
+    arrVtx = [
+        -1.0 + fSizeBtn / 2.0 + fOffset, -1.0 + fOffset + fSizeBtn, fZ, 
+        -1.0 + fSizeBtn       + fOffset, -1.0 + fOffset,            fZ, 
+        -1.0                  + fOffset, -1.0 + fOffset,            fZ, 
+         1.0 - fSizeBtn / 2.0 - fOffset, -1.0 + fOffset,            fZ, 
+         1.0 - fSizeBtn       - fOffset, -1.0 + fOffset + fSizeBtn, fZ, 
+         1.0                  - fOffset, -1.0 + fOffset + fSizeBtn, fZ
+    ];
+    
+    arrIdx = [0, 1, 2, 3, 4, 5];
+    
+    bufMeshBtns = new MeshBuffer();
+    
+    bufMeshBtns.insertVertexArray(glhMain, arrVtx, 6);
+    bufMeshBtns.insertIndexArray(glhMain, arrIdx, 6);
+    bufMeshBtns.setUniformColor(glhMain, [10.0, 0.7, 0.6, 0.3]);
+    
+    return 0;
+}
+
+
+// Putting the information of observers into the shader program
+function mySetConfTransformation(vecPosCenter, gfVel, gfGamma, bIsStar) {
+    var gl = glhMain.getGL();
+    var shaderProgram = glhMain.getShaderProgram();
+    
+    gl.uniform3fv(shaderProgram.vecPosCenter, vecPosCenter);
+    gl.uniform1f(shaderProgram.fVelVtx,   gfVel);
+    gl.uniform1f(shaderProgram.fGammaVtx, gfGamma);
+    
+    gl.uniform1f(shaderProgram.fVelFrag,   gfVel);
+    gl.uniform1f(shaderProgram.fGammaFrag, gfGamma);
+    
+    gl.uniform1i(shaderProgram.bIsStar, bIsStar);
+    
+    return 0;
+}
+
+
+function mySetModeDopplerEffect(bOnOff) {
+    var gl = glhMain.getGL();
+    var shaderProgram = glhMain.getShaderProgram();
+    
+    gl.uniform1i(shaderProgram.bIsOnDopplerEff, bOnOff);
+    
+    return 0;
+}
+
+
+// Putting the matrices for arranging of a given mesh in the 'world'
+function mySetMatrixWorld(matMVWorld, matNWorld) {
+    var gl = glhMain.getGL();
+    var shaderProgram = glhMain.getShaderProgram();
+    
+    gl.uniformMatrix4fv(shaderProgram.matMVWorld, false, matMVWorld);
+    gl.uniformMatrix3fv(shaderProgram.matNWorld,  false, matNWorld);
+    
+    return 0;
+}
+
+
+// Drawing all stars; the actual works are done in the shader program
+function myDrawStars(gfVel, gfGamma) {
+    var i;
+    
+    glhMain.disableLight();
+    
+    mySetConfTransformation(vecPosCamera, gfVel, gfGamma, true);
+    bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
+    
+    /*for ( i = 0 ; i < arrStars.length ; i++ ) {
+        mySetConfTransformation(arrStars[ i ], gfVel, gfGamma, true);
+        bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
+    }*/
+    
+    return 0;
+}
+
+
+// To draw the simple button some several codes are needed than we think
+function myDrawButtons() {
+    var mat3I, mat4I;
+    
+    mat3I = mat3.create();
+    mat3.identity(mat3I);
+    
+    mat4I = mat4.create();
+    mat4.identity(mat4I);
+    
+    mySetMatrixWorld(mat4I, mat3I);
+    mySetConfTransformation([0.0, 0.0, 0.0], 0.0, 1.0, false);
+    
+    glhMain.disableLight();
+    
+    bufMeshBtns.drawMesh(glhMain, mat4I, mat4I);
+    
+    return 0;
+}
+
+
+// Initializing the scene
+function myInitScene(gfVel, gfGamma) {
+    glhMain.initDraw();
+    
+    // Set the perspective matrix
+    // The far plane is set so far to show stars which are far and far away
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 
+        0.1, fFFar, pMatrix);
+    
+    return 0;
+}
+
+
+function myDrawScene(gfVel, gfGamma) {
+    var i;
+    
+    var matNor;
+    var vecDirLightTurned = [0.0, 0.0, 0.0, 0.0];
+    
+    // Set matrix for camera
+    mat4.identity(mvMatrix);
+    mat4.rotate(mvMatrix, fXAngleCamera, [1, 0, 0]);
+    mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
+    
+    // Draw objects
+    mySetModeDopplerEffect(false); // Doppler effect is not applied to stars
+    myDrawStars(gfVel, gfGamma);
+    
+    // Set the configuration for light
+    if ( bOnLight ) {
+        vecDirLightTurned[ 0 ] = vec3DirLight[ 0 ];
+        vecDirLightTurned[ 1 ] = vec3DirLight[ 1 ];
+        vecDirLightTurned[ 2 ] = vec3DirLight[ 2 ];
+        vecDirLightTurned[ 3 ] = 0.0;
+        
+        // Turn the direction of light via the camera matrix
+        mat4.multiplyVec4(mvMatrix, vecDirLightTurned, vecDirLightTurned);
+        
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vecDirLightTurned);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
+    
+    // Make configuration for drawing objects
+    mySetConfTransformation(vecPosCamera, gfVel, gfGamma, false);
+    mySetModeDopplerEffect(bIsOnDopplerEff);
+    
+    // Draw objects
+    for ( i = 0 ; i < arrObjs.length ; i++ ) {
+        mySetMatrixWorld(arrObjs[ i ].matMVWorld, arrObjs[ i ].matMVWorldNormal);
+        arrObjs[ i ].drawMesh(glhMain, pMatrix, mvMatrix);
+    }
+    
+    // Draw buttons
+    myDrawButtons();
+}
+
+
+function myMakeAnimation(gfVel) {
+    var nTimeNow, nElapsed;
+    
+    var gfVel;
+    
+    // What time is it?
+    nTimeNow = new Date().getTime();
+    nElapsed = 0;
+    
+    // Calculating some variables with respect to the elapsed time
+    if ( nTimeLast != 0) {
+        nElapsed = nTimeNow - nTimeLast;
+        
+        // Note that in OpenGL the coordinate is fliped in z-axis
+        vecPosCamera[ 2 ] -= gfVel * nElapsed / 1000.0;
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    var gfVel, gfGamma;
+    
+    // Running frame up
+    requestAnimationFrame(myDoTick, 1000 / 60);
+    
+    if ( bIsLoading ) {
+        return 0;
+    }
+    
+    // Getting all inputs
+    gfMom = parseFloat(document.getElementById("inputtextMom").value);
+    bIsOnDopplerEff = document.getElementById("inputchkboxDopplerEff").checked;
+    
+    // Calculating velocity (divided by c) and gamma from momentum ( / mass)
+    gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
+    gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
+    
+    // Okay, do it
+    myInitScene(gfVel, gfGamma);
+    myDrawScene(gfVel, gfGamma);
+    myMakeAnimation(gfVel);
+    
+    // Dumping informations (momentum, velocity, gamma)
+    document.getElementById("divOutVel").innerHTML =   "Velocity = " + gfVel + "&nbsp;&nbsp;";
+    document.getElementById("divOutGamma").innerHTML = "Gamma = "    + gfGamma;
+}
+
+
+function myIsClickOnBtn(fX, fY, bIsTouch) {
+    var fScale;
+    
+    fScale = ( bIsTouch ? 1.5 : 1.0 );
+    
+    if ( fY <= -1.0 + fSizeBtn * fScale ) {
+        if ( fX <= -1.0 + fSizeBtn * fScale ) {
+            return 1;
+        } else if ( fX >= 1.0 - fSizeBtn * fScale ) {
+            return -1;
+        }
+    }
+    
+    return 0;
+}
+
+
+function handleEventDragStart(nX, nY, nRelX, nRelY, bIsTouch) {
+    var canvasMain = document.getElementById("canvasMain");
+    
+    var fX, fY;
+    
+    var nStateBtn;
+    
+    fX = nRelX * 2.0 / canvasMain.width - 1.0;
+    fY = 1.0 - nRelY * 2.0 / canvasMain.height;
+    
+    nStateBtn = myIsClickOnBtn(fX, fY, bIsTouch);
+    
+    if ( nStateBtn == 0 ) {
+        bIsDraging = true;
+        nXDragPrev = nX;
+        nYDragPrev = nY;
+    } else {
+        gfMom += 0.1 * nStateBtn;
+        
+        document.getElementById("inputtextMom").value = gfMom.toFixed(1);
+    }
+}
+
+
+function handleEventDragEnd() {
+    bIsDraging = false;
+}
+
+
+function handleEventDraging(nX, nY) {
+    var nXDragCurr, nYDragCurr;
+    
+    if ( !bIsDraging ) {
+        nXDragCurr = nYDragCurr = 0;
+        
+        return;
+    }
+    
+    nXDragCurr = nX;
+    nYDragCurr = nY;
+    
+    fXAngleCamera += ( nYDragCurr - nYDragPrev ) * fSensible;
+    fZAngleCamera += ( nXDragCurr - nXDragPrev ) * fSensible;
+    
+    if ( fXAngleCamera < -Math.PI / 2 * 0.95 ) {
+        fXAngleCamera = -Math.PI / 2 * 0.95;
+    }
+    
+    if ( fXAngleCamera >  Math.PI / 2 * 0.95 ) {
+        fXAngleCamera =  Math.PI / 2 * 0.95;
+    }
+    
+    if ( fZAngleCamera < 0 ) {
+        fZAngleCamera += 2 * Math.PI;
+    }
+    
+    if ( fZAngleCamera > 2 * Math.PI ) {
+        fZAngleCamera -= 2 * Math.PI;
+    }
+    
+    nXDragPrev = nXDragCurr;
+    nYDragPrev = nYDragCurr;
+}
+
+
+function myLoadJSON(strPath) {
+    var requestJSON = new XMLHttpRequest();
+    
+    requestJSON.open("GET", strPath);
+    
+    requestJSON.onreadystatechange = function() {
+        if ( requestJSON.readyState == 4 ) {
+            bIsLoading = true;
+            myLoadWorldFromJSON(requestJSON.responseText);
+        }
+    };
+    
+    requestJSON.send();
+    
+    return 0;
+}
+
+
+function mySetupGLHeaderForRelativity() {
+    var strShaderVtxCode;
+    var strShaderFragCode;
+    
+    var objNext;
+    
+    // Loading the vertex shader code
+    strShaderVtxCode = "";
+    objNext = document.getElementById("vscodeRelativity").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderVtxCode += objNext.textContent;
+        }
+        
+        objNext = objNext.nextSibling;
+    }
+    
+    glhMain.setShaderCodeVtx(strShaderVtxCode);
+    
+    // Loading the fragment shader code
+    strShaderFragCode = "";
+    objNext = document.getElementById("fscodeRelativity").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderFragCode += objNext.textContent;
+        }
+        
+        objNext = objNext.nextSibling;
+    }
+    
+    glhMain.setShaderCodeFrag(strShaderFragCode);
+    
+    // Getting points for accessing the variables of shaders
+    glhMain.setFuncExtraVariables(function(gl, shaderProgram) {
+        shaderProgram.matMVWorld = gl.getUniformLocation(shaderProgram, "u_matMVWorld");
+        shaderProgram.matNWorld  = gl.getUniformLocation(shaderProgram, "u_matNWorld");
+        
+        shaderProgram.vecPosCenter = gl.getUniformLocation(shaderProgram, "u_vecPosCenter");
+        shaderProgram.fVelVtx      = gl.getUniformLocation(shaderProgram, "u_fVelVtx");
+        shaderProgram.fGammaVtx    = gl.getUniformLocation(shaderProgram, "u_fGammaVtx");
+        
+        shaderProgram.fVelFrag   = gl.getUniformLocation(shaderProgram, "u_fVelFrag");
+        shaderProgram.fGammaFrag = gl.getUniformLocation(shaderProgram, "u_fGammaFrag");
+        
+        shaderProgram.bIsStar = gl.getUniformLocation(shaderProgram, "u_bIsStar");
+        
+        shaderProgram.bIsOnDopplerEff = gl.getUniformLocation(shaderProgram, "u_bIsOnDopplerEff");
+        
+        return 0;
+    });
+    
+    return 0;
+}
+
+
+function myLaunchGL() {
+    var canvasMain = document.getElementById("canvasMain");
+    
+    // Size of star = 2 px * 2 px
+    fSizeStarX = 2.0 / canvasMain.width;
+    fSizeStarY = 2.0 / canvasMain.height;
+    
+    glhMain = new glHeader();
+    
+    mySetupGLHeaderForRelativity();
+    
+    glhMain.initGL(canvasMain);
+    
+    bOnLight = true;
+    
+    canvasMain.innerHTML = "Loading...";
+    
+    myLoadJSON("worldmodel_boxes_colored.json");
+    myCreateStars();
+    myCreateBtnForMom();
+    
+    // Adding event listeners
+    // The first three are for mouse-draging and the followings are for touch
+    
+    canvasMain.addEventListener("mousedown", function(event) {
+        return handleEventDragStart(event.clientX, event.clientY, 
+            event.pageX - this.offsetLeft, event.pageY - this.offsetTop, false);
+    }, false);
+    
+    document.addEventListener("mouseup", function(event) {
+        return handleEventDragEnd();
+    }, false);
+    
+    document.addEventListener("mousemove", function(event) {
+        return handleEventDraging(event.clientX, event.clientY);
+    }, false);
+    
+    canvasMain.addEventListener("touchstart", function(event) {
+        var objTouch;
+        
+        if ( event.changedTouches.length != 1 ) {
+            return 0;
+        }
+        
+        var objTouch = event.changedTouches[ 0 ];
+        
+        return handleEventDragStart(-objTouch.clientX, -objTouch.clientY, 
+            objTouch.pageX - this.offsetLeft, objTouch.pageY - this.offsetTop, true);
+    }, false);
+    
+    document.addEventListener("touchend", function(event) {
+        return handleEventDragEnd();
+    }, false);
+    
+    document.addEventListener("touchmove", function(event) {
+        var objTouch;
+        
+        if ( event.changedTouches.length != 1 ) {
+            return 0;
+        }
+        
+        objTouch = event.changedTouches[ 0 ];
+        
+        return handleEventDraging(-objTouch.clientX, -objTouch.clientY);
+    }, false);
+    
+    myDoTick();
+}
+
+
+function myResetAll() {
+    document.getElementById("inputtextMom").value = 0.0;
+    
+    vecPosCamera[ 0 ] = 0.0;
+    vecPosCamera[ 1 ] = 0.0;
+    vecPosCamera[ 2 ] = 0.0;
+    
+    fXAngleCamera = 0.0;
+    fZAngleCamera = 0.0;
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+<br>
+<div>
+Momentum / m<sub>observer</sub>c = <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
+<label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
+<input type = "button" value = "Reset" onclick = "myResetAll()">
+</div>
+<table border = 0 cellpadding = 0 cellspacing = 0>
+<tr>
+<td width = 320 style = "white-space: nowrap;"><div id = "divOutVel"></div></td>
+<td><div id = "divOutGamma"></div></td>
+</tr>
+</table>
+<div id = "divDump2"></div>
+</body>
+</html>
+
+
