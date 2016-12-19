@@ -261,11 +261,31 @@ var fSizeBtn;
 var bIsLoading = true;
 
 
-function myRemovePolygon(bufMesh) {
+/*
+  The following is the structure of JSON file : 
+  (asterisked feature is able to be omitted)
+    objs : array of objects --- {
+      vertices     : containing the vertex positions
+      normals      : containing the normal vectors of each vertex
+      colors       : containing the colors of each vertex
+                     if it contains only one color, it will be the uniform color
+      indices*     : containing the sequences of indices
+      
+      numVtx       : the number of vertices ( = vertices.length / 3 )
+      numFace*     : the number of triangles consisting the mesh ( = inices.length / 3 )
+      SameBefore*  : when it is not -1, this object is a duplicate of an object 
+                     of which the index (in objs) is equal to this value
+      
+      scales       : scale of the mesh
+      rotation     : information for rotation of the mesh
+                     the length is the rotation angle, while the direction is the rotation axis
+      position     : position of the mesh in the world
+      
+      transparent* : indicating that this object is transparent
+    }
     
-    
-    return 0;
-}
+    color_overall* : if you want to fill all objects with same color, give the color to this
+*/
 
 
 function myLoadWorldFromJSON(strDataJSON) {
@@ -282,48 +302,82 @@ function myLoadWorldFromJSON(strDataJSON) {
     var nNumVtx, nNumFace;
     
     var matMVPoly, mat3Nor;
+    var matOp;
+    var fAngRot;
     
     // Clear previous objects
     for ( ; arrObjs.length > 0 ; ) {
-        bufMesh = arrObjs.pull();
+        bufMesh = arrObjs.pop();
         
-        myRemovePolygon(bufMesh);
+        delete bufMesh.matMVWorld;
+        delete bufMesh.matMVWorldNormal;
+        bufMesh.freeBuffer(glhMain);
+        
         delete bufMesh;
     }
     
+    // Parsing the JSON content
     pData = JSON.parse(strDataJSON);
+    
+    matOp = mat4.create();
     
     for ( i = 0 ; i < pData.objs.length ; i++ ) {
         bufMesh = new MeshBuffer();
         
-        nNumVtx = pData.objs[ i ].numVtx;
-        nNumFace = pData.objs[ i ].numFaces;
+        nIdxOrg = ( "SameBefore" in pData.objs[ i ] ? pData.objs[ i ].SameBefore : -1 );
+        objPolyData = pData.objs[ ( nIdxOrg < 0 ? i : nIdxOrg ) ];
         
-        nIdxOrg = pData.objs[ i ].SameBefore;
-        objPolyData = pData.objs[ ( nIdxOrg == -1 ? i : nIdxOrg ) ];
+        //nNumVtx = pData.objs[ i ].numVtx;
+        //nNumFace = pData.objs[ i ].numFaces;
+        nNumVtx = objPolyData.numVtx;
+        nNumFace = objPolyData.numFaces;
         
         bufMesh.insertVertexArray(glhMain, objPolyData.vertices, nNumVtx);
-        bufMesh.insertIndexArray(glhMain, objPolyData.indices, 3 * nNumFace);
         bufMesh.insertNormalArray(glhMain, objPolyData.normals, nNumVtx);
+        
+        if ( nNumFace != 0 && "indices" in objPolyData ) {
+            bufMesh.insertIndexArray(glhMain, objPolyData.indices, 3 * nNumFace);
+        }
         
         arrBufColors = ( pData.objs[ i ].colors.length != 0 ? 
             pData.objs[ i ].colors : objPolyData.colors );
         
-        if ( arrBufColors.length == 4 * nNumVtx ) {
-            bufMesh.insertColorArray(glhMain, arrBufColors, nNumVtx);
+        if ( !( "color_overall" in pData ) ) {
+            if ( arrBufColors.length == 4 * nNumVtx ) {
+                bufMesh.insertColorArray(glhMain, arrBufColors, nNumVtx);
+            } else {
+                bufMesh.setUniformColor(glhMain, arrBufColors);
+            }
         } else {
-            bufMesh.setUniformColor(glhMain, arrBufColors);
+            bufMesh.setUniformColor(glhMain, pData.color_overall);
         }
         
+        // Preparing to calculate matrix
         matMVPoly = mat4.create();
         mat4.identity(matMVPoly);
         
+        // Calculating the transformation matrix for world
+        // In general, the transformation is done in the following sequence: 
+        // Scaling -> Rotating -> Translating
         mat4.scale(matMVPoly, pData.objs[ i ].scales);
-        //mat4.rotation(matMVPoly, pData.objs[ i ].scales);
-        mat4.translate(matMVPoly, pData.objs[ i ].position);
+        
+        // The length of this vector is the rotation angle while the direction is the axis
+        // Also, no length, no rotation
+        fAngRot = vec3.length(pData.objs[ i ].rotation);
+        if ( fAngRot != 0 ) {
+            vec3.scale(pData.objs[ i ].rotation, 1.0 / fAngRot, pData.objs[ i ].rotation);
+            mat4.rotate(matMVPoly, fAngRot, pData.objs[ i ].rotation);
+        }
+        
+        // The translate function in the gl library has a gap, 
+        // So it should be manipulated by a hand like this
+        matMVPoly[ 12 + 0 ] = pData.objs[ i ].position[ 0 ];
+        matMVPoly[ 12 + 1 ] = pData.objs[ i ].position[ 1 ];
+        matMVPoly[ 12 + 2 ] = pData.objs[ i ].position[ 2 ];
         
         bufMesh.matMVWorld = matMVPoly;
         
+        // Calculating the transformation matrix for normal vectors
         mat3Nor = mat3.create();
         mat4.toInverseMat3(matMVPoly, mat3Nor);
         mat3.transpose(mat3Nor);
@@ -334,6 +388,8 @@ function myLoadWorldFromJSON(strDataJSON) {
     }
     
     bIsLoading = false;
+    
+    delete pData;
     
     return 0;
 }
@@ -497,11 +553,6 @@ function myDrawStars(gfVel, gfGamma) {
     
     mySetConfTransformation(vecPosCamera, gfVel, gfGamma, true);
     bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
-    
-    /*for ( i = 0 ; i < arrStars.length ; i++ ) {
-        mySetConfTransformation(arrStars[ i ], gfVel, gfGamma, true);
-        bufMeshStar.drawMesh(glhMain, pMatrix, mvMatrix);
-    }*/
     
     return 0;
 }
@@ -812,7 +863,7 @@ function myLaunchGL() {
     
     canvasMain.innerHTML = "Loading...";
     
-    myLoadJSON("worldmodel_boxes_colored.json");
+    myLoadJSON(document.getElementById("inputselWorld").value);
     myCreateStars();
     myCreateBtnForMom();
     
@@ -885,7 +936,16 @@ This browser does not suppot HTML5. Upgrade it.
 </canvas>
 <br>
 <div>
-Momentum / m<sub>observer</sub>c = <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
+Momentum / m<sub>observer</sub>c = 
+<input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
+world : <select id = "inputselWorld" onchange = 'myLoadJSON(document.getElementById("inputselWorld").value);'>
+  <option value = "worldmodel_boxes_colored.json">boxes - RGB</option>
+  <option value = "worldmodel_boxes_allred.json">boxes - only red</option>
+  <option value = "worldmodel_boxes_allgreen.json">boxes - only green</option>
+  <option value = "worldmodel_boxes_allblue.json">boxes - only blue</option>
+  <option value = "worldmodel_spheres.json">spheres</option>
+  <option value = "worldmodel_utah_teapots.json" selected>Utah teapots</option>
+</select>&nbsp;&nbsp;
 <label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
 <input type = "button" value = "Reset" onclick = "myResetAll()">
 </div>
