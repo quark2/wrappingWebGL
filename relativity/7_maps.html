@@ -219,6 +219,9 @@ void main(void) {
 <script language = "javascript">
 var glhMain;
 
+var nWidthCanvas;
+var nHeightCanvas;
+
 var fFFar = 32 * 1048576.0;
 
 var pMatrix  = mat4.create();
@@ -586,8 +589,56 @@ function myDrawButtons() {
 }
 
 
+function mySetCanvasSizeFromSelection() {
+    var arrSize;
+    
+    var nWidth, nHeight;
+    
+    arrSize = ( document.getElementById("inputselCanvassize").value ).split(" ");
+    /*nWidth  = Number(arrSize[ 0 ]);
+    nHeight = Number(arrSize[ 1 ]);
+    
+    document.getElementById("canvasMain").width  = nWidth;
+    document.getElementById("canvasMain").height = nHeight;*/
+    nWidthCanvas  = Number(arrSize[ 0 ]);
+    nHeightCanvas = Number(arrSize[ 1 ]);
+    
+    return 0;
+}
+
+
 // Initializing the scene
 function myInitScene(gfVel, gfGamma) {
+    var nWidth;
+    var nHeight;
+    
+    var canvasMain = document.getElementById("canvasMain");
+    
+    if ( !document.fullscreenElement && 
+        !document.mozFullScreenElement && 
+        !document.webkitFullscreenElement)
+    {
+        /*nWidth  = Number(canvasMain.width);
+        nHeight = Number(canvasMain.height);*/
+        mySetCanvasSizeFromSelection();
+        
+        nWidth  = nWidthCanvas;
+        nHeight = nHeightCanvas;
+    } else {
+        nWidth  = window.innerWidth;
+        nHeight = window.innerHeight;
+    }
+    
+    canvasMain.width  = nWidth;
+    canvasMain.height = nHeight;
+    
+    glhMain.setViewportWidth(nWidth);
+    glhMain.setViewportHeight(nHeight);
+    
+    // Size of star = 2 px * 2 px
+    fSizeStarX = 2.0 / nWidth;
+    fSizeStarY = 2.0 / nHeight;
+    
     glhMain.initDraw();
     
     // Set the perspective matrix
@@ -923,24 +974,16 @@ function myLaunchGL() {
 }
 
 
-function mySetCanvasSize(strSize) {
-    var arrSize;
+function mySetFullscreen() {
+    canvasMain = document.getElementById("canvasMain");
     
-    var nWidth, nHeight;
-    
-    arrSize = strSize.split(" ");
-    nWidth  = Number(arrSize[ 0 ]);
-    nHeight = Number(arrSize[ 1 ]);
-    
-    document.getElementById("canvasMain").width  = nWidth;
-    document.getElementById("canvasMain").height = nHeight;
-    
-    glhMain.setViewportWidth(nWidth);
-    glhMain.setViewportHeight(nHeight);
-    
-    // Size of star = 2 px * 2 px
-    fSizeStarX = 2.0 / nWidth;
-    fSizeStarY = 2.0 / nHeight;
+    if ( canvasMain.requestFullscreen ) {
+        canvasMain.requestFullscreen();
+    } else if ( canvasMain.mozRequestFullScreen ) {
+        canvasMain.mozRequestFullScreen();
+    } else if ( canvasMain.webkitRequestFullscreen ) {
+        canvasMain.webkitRequestFullscreen();
+    }
     
     return 0;
 }
@@ -968,7 +1011,7 @@ This browser does not suppot HTML5. Upgrade it.
 <div>
 Momentum / m<sub>observer</sub>c = 
 <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
-size : <select id = "inputselCanvassize" onchange = 'mySetCanvasSize(this.value);'>
+size : <select id = "inputselCanvassize">
   <option value = "800 600">800 x 600</option>
   <option value = "1024 768" selected>1024 x 768</option>
   <option value = "1280 960">1280 x 960</option>
@@ -984,7 +1027,8 @@ world : <select id = "inputselWorld" onchange = 'myLoadJSON(this.value);'>
   <option value = "worldmodel_utah_teapots.json">Utah teapots</option>
 </select>&nbsp;&nbsp;
 <label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
-<input type = "button" value = "Reset" onclick = "myResetAll()">
+<input type = "button" value = "Fullscreen" onclick = 'mySetFullscreen();'>&nbsp;
+<input type = "button" value = "Reset" onclick = "myResetAll();">
 </div>
 <table border = 0 cellpadding = 0 cellspacing = 0>
 <tr>
