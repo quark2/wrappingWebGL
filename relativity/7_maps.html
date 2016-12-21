@@ -152,6 +152,8 @@ uniform float u_fVelVtx;
 uniform float u_fGammaVtx;
 
 uniform bool u_bIsStar;
+uniform float u_fSizeStarX;
+uniform float u_fSizeStarY;
 
 varying vec3 vecLight;
 
@@ -199,7 +201,8 @@ void main(void) {
             vec4PosWorld[ 2 ] = 0.9999999;
         }
         
-        gl_Position = vec4PosWorld + vec4(a_vec2TextureCoord[ 0 ], a_vec2TextureCoord[ 1 ], 0.0, 0.0);
+        gl_Position = vec4PosWorld + vec4(u_fSizeStarX * a_vec2TextureCoord[ 0 ], 
+            u_fSizeStarY * a_vec2TextureCoord[ 1 ], 0.0, 0.0);
         vecNorCalc = vec3(0.0, 0.0, 0.0); // In this case light is turned off
     }
     
@@ -218,9 +221,6 @@ void main(void) {
 
 <script language = "javascript">
 var glhMain;
-
-var nWidthCanvas;
-var nHeightCanvas;
 
 var fFFar = 32 * 1048576.0;
 
@@ -451,17 +451,17 @@ function myCreateStars() {
         arrVtx.push(fY);
         arrVtx.push(fZ);
         
-        arrTex.push(-fSizeStarX);
-        arrTex.push(-fSizeStarY);
+        arrTex.push(-1.0);
+        arrTex.push(-1.0);
         
-        arrTex.push( fSizeStarX);
-        arrTex.push(-fSizeStarY);
+        arrTex.push( 1.0);
+        arrTex.push(-1.0);
         
-        arrTex.push(-fSizeStarX);
-        arrTex.push( fSizeStarY);
+        arrTex.push(-1.0);
+        arrTex.push( 1.0);
         
-        arrTex.push( fSizeStarX);
-        arrTex.push( fSizeStarY);
+        arrTex.push( 1.0);
+        arrTex.push( 1.0);
         
         arrIdx.push(4 * i + 0);
         arrIdx.push(4 * i + 1);
@@ -527,7 +527,9 @@ function mySetConfTransformation(vecPosCenter, gfVel, gfGamma, bIsStar) {
     gl.uniform1f(shaderProgram.fVelFrag,   gfVel);
     gl.uniform1f(shaderProgram.fGammaFrag, gfGamma);
     
-    gl.uniform1i(shaderProgram.bIsStar, bIsStar);
+    gl.uniform1i(shaderProgram.bIsStar,    bIsStar);
+    gl.uniform1f(shaderProgram.fSizeStarX, fSizeStarX);
+    gl.uniform1f(shaderProgram.fSizeStarY, fSizeStarY);
     
     return 0;
 }
@@ -592,18 +594,9 @@ function myDrawButtons() {
 function mySetCanvasSizeFromSelection() {
     var arrSize;
     
-    var nWidth, nHeight;
-    
     arrSize = ( document.getElementById("inputselCanvassize").value ).split(" ");
-    /*nWidth  = Number(arrSize[ 0 ]);
-    nHeight = Number(arrSize[ 1 ]);
     
-    document.getElementById("canvasMain").width  = nWidth;
-    document.getElementById("canvasMain").height = nHeight;*/
-    nWidthCanvas  = Number(arrSize[ 0 ]);
-    nHeightCanvas = Number(arrSize[ 1 ]);
-    
-    return 0;
+    return [Number(arrSize[ 0 ]), Number(arrSize[ 1 ])];
 }
 
 
@@ -614,24 +607,28 @@ function myInitScene(gfVel, gfGamma) {
     
     var canvasMain = document.getElementById("canvasMain");
     
+    // Is in fullscreen mode? 
+    // (1st is for general browsers and 2nd for Firefox and 3rd for Chrome)
     if ( !document.fullscreenElement && 
         !document.mozFullScreenElement && 
         !document.webkitFullscreenElement)
     {
-        /*nWidth  = Number(canvasMain.width);
-        nHeight = Number(canvasMain.height);*/
-        mySetCanvasSizeFromSelection();
+        // Getting selected resolution and using it
+        var arrSize = mySetCanvasSizeFromSelection();
         
-        nWidth  = nWidthCanvas;
-        nHeight = nHeightCanvas;
+        nWidth  = arrSize[ 0 ];
+        nHeight = arrSize[ 1 ];
     } else {
+        // Giving the size of fullscreen
         nWidth  = window.innerWidth;
         nHeight = window.innerHeight;
     }
     
+    // Adjusting size of canvas
     canvasMain.width  = nWidth;
     canvasMain.height = nHeight;
     
+    // Also adjusting size of viewport
     glhMain.setViewportWidth(nWidth);
     glhMain.setViewportHeight(nHeight);
     
@@ -893,7 +890,9 @@ function mySetupGLHeaderForRelativity() {
         shaderProgram.fVelFrag   = gl.getUniformLocation(shaderProgram, "u_fVelFrag");
         shaderProgram.fGammaFrag = gl.getUniformLocation(shaderProgram, "u_fGammaFrag");
         
-        shaderProgram.bIsStar = gl.getUniformLocation(shaderProgram, "u_bIsStar");
+        shaderProgram.bIsStar      = gl.getUniformLocation(shaderProgram, "u_bIsStar");
+        shaderProgram.fSizeStarX = gl.getUniformLocation(shaderProgram, "u_fSizeStarX");
+        shaderProgram.fSizeStarY = gl.getUniformLocation(shaderProgram, "u_fSizeStarY");
         
         shaderProgram.bIsOnDopplerEff = gl.getUniformLocation(shaderProgram, "u_bIsOnDopplerEff");
         
