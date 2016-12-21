@@ -265,14 +265,18 @@ var bIsLoading = true;
   The following is the structure of JSON file : 
   (asterisked feature is able to be omitted)
     objs : array of objects --- {
-      vertices     : containing the vertex positions
-      normals      : containing the normal vectors of each vertex
-      colors       : containing the colors of each vertex
-                     if it contains only one color, it will be the uniform color
-      indices*     : containing the sequences of indices
-      
       numVtx       : the number of vertices ( = vertices.length / 3 )
       numFace*     : the number of triangles consisting the mesh ( = inices.length / 3 )
+      
+      vertices     : containing the vertex positions
+      normals      : containing the normal vectors of each vertex
+      indices*     : containing the sequences of indices
+      
+      colors       : containing the colors of each vertex
+                     if it contains only one color, it will be the uniform color
+      texid*       : indicating the ID of texture
+      texcoords*   : containing the texture coordinate of each vertex
+      
       SameBefore*  : when it is not -1, this object is a duplicate of an object 
                      of which the index (in objs) is equal to this value
       
@@ -282,8 +286,11 @@ var bIsLoading = true;
       position     : position of the mesh in the world
       
       transparent* : indicating that this object is transparent
+      radiation*   : this object is thermal radiating
+                     one can give a fluctuation by texture and the temperature via 'color'
     }
     
+    textures* : array of pathes of textures
     color_overall* : if you want to fill all objects with same color, give the color to this
 */
 
@@ -916,6 +923,29 @@ function myLaunchGL() {
 }
 
 
+function mySetCanvasSize(strSize) {
+    var arrSize;
+    
+    var nWidth, nHeight;
+    
+    arrSize = strSize.split(" ");
+    nWidth  = Number(arrSize[ 0 ]);
+    nHeight = Number(arrSize[ 1 ]);
+    
+    document.getElementById("canvasMain").width  = nWidth;
+    document.getElementById("canvasMain").height = nHeight;
+    
+    glhMain.setViewportWidth(nWidth);
+    glhMain.setViewportHeight(nHeight);
+    
+    // Size of star = 2 px * 2 px
+    fSizeStarX = 2.0 / nWidth;
+    fSizeStarY = 2.0 / nHeight;
+    
+    return 0;
+}
+
+
 function myResetAll() {
     document.getElementById("inputtextMom").value = 0.0;
     
@@ -938,13 +968,20 @@ This browser does not suppot HTML5. Upgrade it.
 <div>
 Momentum / m<sub>observer</sub>c = 
 <input type = "number" id = "inputtextMom" step = "0.1" value = "0.0">&nbsp;&nbsp;
-world : <select id = "inputselWorld" onchange = 'myLoadJSON(document.getElementById("inputselWorld").value);'>
+size : <select id = "inputselCanvassize" onchange = 'mySetCanvasSize(this.value);'>
+  <option value = "800 600">800 x 600</option>
+  <option value = "1024 768" selected>1024 x 768</option>
+  <option value = "1280 960">1280 x 960</option>
+  <option value = "1280 1024">1280 x 1024</option>
+  <option value = "1600 1200">1600 x 1200</option>
+</select>&nbsp;&nbsp;
+world : <select id = "inputselWorld" onchange = 'myLoadJSON(this.value);'>
   <option value = "worldmodel_boxes_colored.json">boxes - RGB</option>
   <option value = "worldmodel_boxes_allred.json">boxes - only red</option>
   <option value = "worldmodel_boxes_allgreen.json">boxes - only green</option>
   <option value = "worldmodel_boxes_allblue.json">boxes - only blue</option>
   <option value = "worldmodel_spheres.json">spheres</option>
-  <option value = "worldmodel_utah_teapots.json" selected>Utah teapots</option>
+  <option value = "worldmodel_utah_teapots.json">Utah teapots</option>
 </select>&nbsp;&nbsp;
 <label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
 <input type = "button" value = "Reset" onclick = "myResetAll()">

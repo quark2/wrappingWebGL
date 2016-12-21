@@ -308,6 +308,16 @@ glHeader.prototype.setLightDirectional = function(arrClrDir, arrDirLight) {
 }
 
 
+glHeader.prototype.setViewportWidth = function(nWidth) {
+    this.gl.viewportWidth = nWidth;
+}
+
+
+glHeader.prototype.setViewportHeight = function(nHeight) {
+    this.gl.viewportHeight = nHeight;
+}
+
+
 glHeader.prototype.initDraw = function() {
     glCurr = this.gl;
     
@@ -520,6 +530,26 @@ MeshBuffer.prototype.drawMesh = function(glHeader, matP, matMV) {
     } else {
         gl.drawArrays(gl.TRIANGLES, 0, this.vbufPos.numItems);
     }
+}
+
+
+MeshBuffer.prototype.freeBuffer = function(glHeader) {
+    var gl = glHeader.getGL();
+    
+    gl.deleteBuffer(this.vbufPos);
+    gl.deleteBuffer(this.vbufNor);
+    gl.deleteBuffer(this.vbufTex);
+    
+    delete this.arrVtx;
+    delete this.arrNor;
+    delete this.arrTex;
+    
+    if ( this.nIsIdxOn == 1 ) {
+        gl.deleteBuffer(this.vbufIdx);
+        delete this.arrIdx;
+    }
+    
+    return 0;
 }
 
 
