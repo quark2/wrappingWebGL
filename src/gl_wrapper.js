@@ -27,12 +27,13 @@ g_strShaderCodeFrag =
    "    }\n" + 
    "    \n" + 
    "    gl_FragColor = vec4(vec4MainClr.rgb * vecLight, vec4MainClr.a);\n" + 
+   "    //gl_FragColor = vec4(vecTextureCoord.s, vecTextureCoord.t, 0.0, 1.0);\n" + 
    "}\n";
 
 g_strShaderCodeVtx = 
    "attribute vec3 a_vec3VertexPosition;\n" + 
-   "attribute vec4 a_vec3VertexColor;\n" + 
-   "attribute vec3 a_vec4VertexNormal;\n" + 
+   "attribute vec4 a_vec4VertexColor;\n" + 
+   "attribute vec3 a_vec3VertexNormal;\n" + 
    "attribute vec2 a_vec2TextureCoord;\n" + 
    "\n" + 
    "uniform mat4 u_matP;\n" + 
@@ -69,6 +70,35 @@ g_strShaderCodeVtx =
    "    vecTextureCoord = a_vec2TextureCoord;\n" + 
    "}\n";
 
+g_strShaderCodeFragPost = 
+   "precision mediump float;\n" + 
+   "\n" + 
+   "uniform sampler2D u_Sampler;\n" + 
+   "\n" + 
+   "varying vec2 vecTextureCoord;\n" + 
+   "\n" + 
+   "void main(void) {\n" + 
+   "    vec4 vec4MainClr;\n" + 
+   "    \n" + 
+   "    vec4MainClr = vec4(texture2D(u_Sampler, vecTextureCoord).rgb, 1.0);\n" + 
+   "    \n" + 
+   "    gl_FragColor = vec4MainClr;\n" + 
+   "}\n";
+
+g_strShaderCodeVtxPost = 
+   "attribute vec3 a_vec3VertexPosition;\n" + 
+   "\n" + 
+   "uniform vec2 u_vec2RateResolution;\n" + 
+   "\n" + 
+   "varying vec2 vecTextureCoord;\n" + 
+   "\n" + 
+   "void main(void) {\n" + 
+   "    gl_Position = vec4(a_vec3VertexPosition, 1.0);\n" + 
+   "    \n" + 
+   "    vecTextureCoord.s = a_vec3VertexPosition.x / 2.0 * u_vec2RateResolution.s + 0.5;\n" + 
+   "    vecTextureCoord.t = a_vec3VertexPosition.y / 2.0 * u_vec2RateResolution.t + 0.5;\n" + 
+   "}\n";
+
 
 ////////////////////////////////////////////////////////////////
 // 
@@ -81,9 +111,14 @@ function glHeader() {
     this.strShaderCodeVtx  = g_strShaderCodeVtx;
     this.strShaderCodeFrag = g_strShaderCodeFrag;
     
+    this.strShaderCodeVtxPost  = g_strShaderCodeVtxPost;
+    this.strShaderCodeFragPost = g_strShaderCodeFragPost;
+    
     this.addExtraVariables = function(gl, shaderProgram) {
         return 0;
     };
+    
+    this.bIsUsingFB = false;
     
     this.bOnLight = false;
 }
@@ -96,6 +131,11 @@ glHeader.prototype.setShaderCodeVtx = function(strCode) {
 
 glHeader.prototype.setShaderCodeFrag = function(strCode) {
     this.strShaderCodeFrag = strCode;
+}
+
+
+glHeader.prototype.setShaderCodeFragPostProc = function(strCode) {
+    this.strShaderCodeFragPost = strCode;
 }
 
 
@@ -117,7 +157,7 @@ glHeader.prototype.buildShader = function(shader, strCode) {
 }
 
 
-glHeader.prototype.initShaders = function() {
+glHeader.prototype.initShadersScene = function() {
     var fragmentShader = this.gl.createShader(this.gl.FRAGMENT_SHADER);
     var vertexShader =   this.gl.createShader(this.gl.VERTEX_SHADER);
     
@@ -134,7 +174,7 @@ glHeader.prototype.initShaders = function() {
         alert("Could not initialize shaders");
     }
     
-    this.gl.useProgram(this.shaderProgram);
+    //this.gl.useProgram(this.shaderProgram);
     
     this.shaderProgram.vertexPositionAttribute = this.gl.getAttribLocation(this.shaderProgram, 
         "a_vec3VertexPosition");
@@ -172,6 +212,54 @@ glHeader.prototype.initShaders = function() {
 }
 
 
+glHeader.prototype.initShadersPostProc = function() {
+    var fragmentShader = this.gl.createShader(this.gl.FRAGMENT_SHADER);
+    var vertexShader =   this.gl.createShader(this.gl.VERTEX_SHADER);
+    
+    this.buildShader(fragmentShader, this.strShaderCodeFragPost);
+    this.buildShader(vertexShader,   this.strShaderCodeVtxPost);
+    
+    this.postshaderProgram = this.gl.createProgram();
+    this.gl.attachShader(this.postshaderProgram, vertexShader);
+    this.gl.attachShader(this.postshaderProgram, fragmentShader);
+    
+    this.gl.linkProgram(this.postshaderProgram);
+    
+    if ( !this.gl.getProgramParameter(this.postshaderProgram, this.gl.LINK_STATUS) ) {
+        alert("Could not initialize shaders");
+    }
+    
+    //this.gl.useProgram(this.postshaderProgram);
+    
+    this.postshaderProgram.vertexPositionAttribute = this.gl.getAttribLocation(this.postshaderProgram, 
+        "a_vec3VertexPosition");
+    this.gl.enableVertexAttribArray(this.postshaderProgram.vertexPositionAttribute);
+    
+    this.postshaderProgram.vecRateResolution = this.gl.getUniformLocation(this.postshaderProgram, 
+        "u_vec2RateResolution");
+    this.postshaderProgram.samplerUniform = this.gl.getUniformLocation(this.postshaderProgram, "u_Sampler");
+}
+
+
+glHeader.prototype.initPostProc = function() {
+    this.bufVtxPostViewport = this.gl.createBuffer();
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.bufVtxPostViewport);
+    
+    this.gl.bufferData(this.gl.ARRAY_BUFFER, new Float32Array([
+        -1.0,  1.0, 0.0, 
+         1.0,  1.0, 0.0, 
+        -1.0, -1.0, 0.0, 
+         1.0, -1.0, 0.0
+    ]), this.gl.STATIC_DRAW);
+    this.bufVtxPostViewport.itemSize = 3;
+    this.bufVtxPostViewport.numItems = 4;
+    
+    this.initShadersPostProc();
+    
+    return 0;
+}
+
+
 glHeader.prototype.initGL = function(canvas) {
     try {
         this.gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
@@ -182,10 +270,25 @@ glHeader.prototype.initGL = function(canvas) {
               "Maybe your browser does not support WebGL. If it does, please contact us.");
     }
     
-    this.initShaders();
+    this.initShadersScene();
+    this.initPostProc();
     
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     this.gl.enable(this.gl.DEPTH_TEST);
+}
+
+
+glHeader.prototype.useSceneProgram = function() {
+    this.gl.useProgram(this.shaderProgram);
+    
+    return 0;
+}
+
+
+glHeader.prototype.usePostProcProgram = function() {
+    this.gl.useProgram(this.postshaderProgram);
+    
+    return 0;
 }
 
 
@@ -200,8 +303,18 @@ glHeader.prototype.enableColorAttrib = function() {
 }
 
 
+glHeader.prototype.isUsingFramebuffer = function() {
+    return this.bIsUsingFB;
+}
+
+
 glHeader.prototype.enableTextureAttrib = function() {
     this.gl.enableVertexAttribArray(this.shaderProgram.vertexColorAttribute);
+}
+
+
+glHeader.prototype.setUsingFramebuffer = function(bUseFramebuffer) {
+    this.bIsUsingFB = bUseFramebuffer;
 }
 
 
@@ -293,6 +406,26 @@ glHeader.prototype.getViewportHeight = function() {
 }
 
 
+glHeader.prototype.getSizeFramebuffer = function() {
+    var nWidth;
+    var nPower;
+    
+    nWidth = this.gl.viewportWidth - 1;
+    nPower = 1;
+    
+    for ( ; nWidth > 0 ; nWidth = parseInt(nWidth / 2) ) {
+        nPower *= 2;
+    }
+    
+    return nPower;
+}
+
+
+glHeader.prototype.getViewportRatio = function() {
+    return ( !this.bIsUsingFB ? this.gl.viewportWidth / this.gl.viewportHeight : 1.0 );
+}
+
+
 glHeader.prototype.setLightAmbient = function(arrClrAmb) {
     this.gl.uniform3fv(this.shaderProgram.clrAmbUniform, arrClrAmb);
 }
@@ -318,15 +451,117 @@ glHeader.prototype.setViewportHeight = function(nHeight) {
 }
 
 
-glHeader.prototype.initDraw = function() {
-    glCurr = this.gl;
+glHeader.prototype.initDraw = function(nStatePost) {
+    var nPower;
     
-    glCurr.viewport(0, 0, glCurr.viewportWidth, glCurr.viewportHeight);
-    glCurr.clear(glCurr.COLOR_BUFFER_BIT | glCurr.DEPTH_BUFFER_BIT);
-    glCurr.enable(glCurr.DEPTH_TEST);
+    var nViewportWidth, nViewportHeight;
     
-    glCurr.blendFunc(glCurr.SRC_ALPHA, glCurr.ONE_MINUS_SRC_ALPHA);
-    glCurr.enable(glCurr.BLEND);
+    nViewportWidth  = this.gl.viewportWidth;
+    nViewportHeight = this.gl.viewportHeight;
+    
+    if ( !this.bIsUsingFB ) {
+        this.useSceneProgram();
+    } else {
+        nPower = this.getSizeFramebuffer();
+        
+        if ( !nStatePost ) {
+            this.useSceneProgram();
+            
+            nViewportWidth = nViewportHeight = nPower;
+        } else {
+            this.usePostProcProgram();
+            
+            this.gl.uniform2fv(this.postshaderProgram.vecRateResolution, 
+                [this.gl.viewportWidth / nPower, this.gl.viewportHeight / nPower]);
+        }
+    }
+    
+    this.gl.viewport(0, 0, nViewportWidth, nViewportHeight);
+    this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+    this.gl.enable(this.gl.DEPTH_TEST);
+    
+    this.gl.blendFunc(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA);
+    this.gl.enable(this.gl.BLEND);
+}
+
+
+glHeader.prototype.drawPost = function(frameBufferHead) {
+    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.bufVtxPostViewport);
+    this.gl.vertexAttribPointer(this.postshaderProgram.vertexPositionAttribute, 
+        this.bufVtxPostViewport.itemSize, this.gl.FLOAT, false, 0, 0);
+    
+    this.gl.activeTexture(this.gl.TEXTURE0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, frameBufferHead.frameTexture);
+    this.gl.uniform1i(this.postshaderProgram.samplerUniform, 0);
+    
+    this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.bufVtxPostViewport.numItems);
+}
+
+
+// Most of the following function is from http://learningwebgl.com/lessons/lesson16
+
+
+glHeader.prototype.createFramebuffer = function() {
+    var frameBufferNew;
+    var frameTextureNew;
+    var renderBuffer;
+    
+    var nWidth, nHeight;
+    
+    nWidth = nHeight = this.getSizeFramebuffer();
+    
+    frameBufferNew = this.gl.createFramebuffer();
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, frameBufferNew);
+    
+    frameBufferNew.width  = nWidth;
+    frameBufferNew.height = nHeight;
+    
+    frameTextureNew = this.gl.createTexture();
+    this.gl.bindTexture(this.gl.TEXTURE_2D, frameTextureNew);
+    
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_NEAREST);
+    
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, nWidth, nHeight, 
+        0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+    
+    renderBuffer = this.gl.createRenderbuffer();
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, renderBuffer);
+    this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT16, nWidth, nHeight);
+    
+    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, 
+        this.gl.TEXTURE_2D, frameTextureNew, 0);
+    this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT, 
+        this.gl.RENDERBUFFER, renderBuffer);
+    
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    
+    return {frameBuffer: frameBufferNew, frameTexture: frameTextureNew};
+}
+
+
+glHeader.prototype.deleteFramebuffer = function(frameBufferHead) {
+    this.gl.deleteTexture(frameBufferHead.frameTexture);
+    this.gl.deleteFramebuffer(frameBufferHead.frameBuffer);
+}
+
+
+glHeader.prototype.launchFramebuffer = function(frameBufferHead) {
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, frameBufferHead.frameBuffer);
+}
+
+
+glHeader.prototype.releaseFramebuffer = function(frameBufferHead) {
+    this.gl.bindTexture(this.gl.TEXTURE_2D, frameBufferHead.frameTexture);
+    this.gl.generateMipmap(this.gl.TEXTURE_2D);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 }
 
 

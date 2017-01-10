@@ -26,17 +26,17 @@ varying vec3 vecPosOrg;
 
 
 /*
-   The following two functions for HSL RGB are from 
+   The following two functions for HSL-to-RGB are from 
    
    http://stackoverflow.com/questions/180/function-for-creating-color-wheels
 */
 float myToRGB1(float fRm1, float fRm2, float fHue) {
-    if      (fHue > 360.0) fHue -= 360.0;
-    else if (fHue <   0.0) fHue += 360.0;
+    if      ( fHue > 360.0 ) fHue -= 360.0;
+    else if ( fHue <   0.0 ) fHue += 360.0;
     
-    if      (fHue <  60.0) fRm1 = fRm1 + (fRm2 - fRm1) * fHue / 60.0;
-    else if (fHue < 180.0) fRm1 = fRm2;
-    else if (fHue < 240.0) fRm1 = fRm1 + (fRm2 - fRm1) * (240.0 - fHue) / 60.0;
+    if      ( fHue <  60.0 ) fRm1 = fRm1 + ( fRm2 - fRm1 ) * fHue / 60.0;
+    else if ( fHue < 180.0 ) fRm1 = fRm2;
+    else if ( fHue < 240.0 ) fRm1 = fRm1 + ( fRm2 - fRm1 ) * ( 240.0 - fHue ) / 60.0;
     
     return fRm1;
 }
@@ -52,10 +52,10 @@ vec3 myHSLtoRGB(vec3 clrHSL) {
     fSaturation = clrHSL[ 1 ];
     fLuminance = clrHSL[ 2 ];
     
-    if (fSaturation == 0.0) {
+    if ( fSaturation == 0.0 ) {
         clrRGB[ 0 ] = clrRGB[ 1 ] = clrRGB[ 2 ] = fLuminance;
     } else {
-        if (fLuminance <= 0.5) {
+        if ( fLuminance <= 0.5 ) {
             fRm2 = fLuminance + fLuminance * fSaturation;
         } else {
             fRm2 = fLuminance + fSaturation - fLuminance * fSaturation;
@@ -69,6 +69,40 @@ vec3 myHSLtoRGB(vec3 clrHSL) {
     }
     
     return clrRGB;
+}
+
+
+vec3 myApplyDopplerEffToSimpleReflection(vec3 clrHSL, vec3 vecPos) {
+    vec3 vecDir;
+    float fShiftPar;
+    
+    float fWavelength;
+    
+    // Calculating the factor from Doppler effect
+    // Note that the light 'comes' to the camera, the negative sign is needed
+    vecDir = normalize(vecPos);
+    fShiftPar = u_fGammaFrag * 1.0 + u_fGammaFrag * u_fVelFrag * ( -vecDir[ 2 ] );
+    
+    // Do not forget wavelength = c / frequency
+    fWavelength = 650.0 - clrHSL[ 0 ] / 270.0 * ( 650.0 - 475.0 );
+    fWavelength /= fShiftPar;
+    clrHSL[ 0 ] = ( 650.0 - fWavelength ) * 270.0 / ( 650.0 - 475.0 );
+    
+    // There is cutoff -- infrared and ultraviolet.
+    
+    if ( -5.0 <= clrHSL[ 0 ] && clrHSL[ 0 ] <= 0.0 ) {
+        clrHSL[ 2 ] *= ( clrHSL[ 0 ] + 5.0 ) / 5.0;
+        clrHSL[ 0 ] = 0.0;
+    } else if ( 270.0 <= clrHSL[ 0 ] && clrHSL[ 0 ] <= 275.0 ) {
+        clrHSL[ 2 ] *= ( 275.0 - clrHSL[ 0 ] ) / 5.0;
+        clrHSL[ 0 ] = 270.0;
+    } else if ( -5.0 > clrHSL[ 0 ] || clrHSL[ 0 ] > 275.0 ) {
+        clrHSL[ 0 ] = 0.0;
+        clrHSL[ 1 ] = 0.0;
+        clrHSL[ 2 ] = 0.0;
+    }
+    
+    return clrHSL;
 }
 
 
@@ -86,34 +120,7 @@ void main(void) {
     vecHSL = vec4MainClr.rgb;
     
     if ( u_bIsOnDopplerEff ) {
-        vec3 vecDir = normalize(vecPosOrg);
-        float fShiftPar;
-        
-        float fWavelength;
-        
-        // Calculating the factor from Doppler effect
-        // Note that the light 'comes' to the camera, the negative sign is needed
-        vecDir = normalize(vecPosOrg);
-        fShiftPar = u_fGammaFrag * 1.0 + u_fGammaFrag * u_fVelFrag * ( -vecDir[ 2 ] );
-        
-        // Do not forget wavelength = c / frequency
-        fWavelength = 650.0 - vecHSL[ 0 ] / 270.0 * ( 650.0 - 475.0 );
-        fWavelength /= fShiftPar;
-        vecHSL[ 0 ] = ( 650.0 - fWavelength ) * 270.0 / ( 650.0 - 475.0 );
-        
-        // There is cutoff -- infrared and ultraviolet.
-        
-        if ( -5.0 <= vecHSL[ 0 ] && vecHSL[ 0 ] <= 0.0 ) {
-            vecHSL[ 2 ] *= ( vecHSL[ 0 ] + 5.0 ) / 5.0;
-            vecHSL[ 0 ] = 0.0;
-        } else if ( 270.0 <= vecHSL[ 0 ] && vecHSL[ 0 ] <= 275.0 ) {
-            vecHSL[ 2 ] *= ( 275.0 - vecHSL[ 0 ] ) / 5.0;
-            vecHSL[ 0 ] = 270.0;
-        } else if ( -5.0 > vecHSL[ 0 ] || vecHSL[ 0 ] > 275.0 ) {
-            vecHSL[ 0 ] = 0.0;
-            vecHSL[ 1 ] = 0.0;
-            vecHSL[ 2 ] = 0.0;
-        }
+        vecHSL = myApplyDopplerEffToSimpleReflection(vecHSL, vecPosOrg);
     }
     
     // Now our job is almost done while going back to the RGB is remaining
@@ -1000,9 +1007,100 @@ function myResetAll() {
 }
 </script>
 
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+              tex2jax: {inlineMath: [['$','$'], ['\\(','\\)']]}
+                });
+</script>
+<script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+
 </head>
 
 <body onload = "myLaunchGL();">
+
+<h1>1. Introduction</h1>
+
+It is well-known that, if an observer runs as fast as approximately the light, then the observer would see that everything seems contracted in the direction of the movement of the observer.
+This phenomenon comes from the $\textbf{Lorentz transformation}$, which is given as
+\begin{align*}
+  ct &\mapsto ct' = \gamma (ct) + \gamma \beta z, \\
+  x &\mapsto x' = x, \\
+  y &\mapsto y' = y, \\
+  z &\mapsto z' = \gamma \beta (ct) + \gamma z,
+\end{align*}
+where the observer runs through the $z$-direction and $\beta = \frac{v}{c}$, where $v$ is the velocity of the observer, and $\gamma = \frac{1}{\sqrt{1 - \beta^2}}$.
+
+In elementary physics book, the contraction of length is described by the following formula:
+\begin{align*}
+  z' = \frac{z}{\gamma}.
+\end{align*}
+But this formula is on an assumption that this length is get by a direct measurement, which requires that both end points of measured object are at same time (in the frame of ruler) when measurement is operated.
+
+What we shall see is, however, not from such measurement, but about 'seeing by eyes or a camera'.
+It is different from the above case since the observed points are not in the same time with the observer, but from the past.
+This difference involves that the objects the observer will see are very distorted rather than simply contracted.
+This phenomenon is called the $\textbf{Terrell's effect}$ or $\textbf{Terrell-Penrose effect}$, which is visualized in this page.
+Also, the Doppler effect is also simulated in this page.
+The readers will watch and control it.
+
+<h1>2. Terrell's effect</h1>
+
+<h2>2. 1. What 'length contraction' is really</h2>
+
+As mentioned above, observation with eyes or a camera and measurement of length are quite different.
+To see this, we see what happens when we 'measure a length of moving object'.
+Actually, the measurement is operated simply but somewhat subtle; just put a ruler next to the path of the moving object, and check the position of both of end points of the object.
+There is a subtle: in what 'time' are the end points checked.
+The natural configuration is to check them 'simultaneously'.
+It means that, for example, the left side is checked at $t = 0$, the other side has to be checked at $t = 0$.
+Let $L'$ be the distance of the checked points, which is actually what we want to measure, and let $L$ be the length of the measured object in the rest frame.
+It makes no problem to assume that the object moves in the z-axis direction, and the position of the checked left side is $(0, 0, 0)$ and the measurement is done at $t = 0$.
+Then the position of the other side should be $(0, 0, L')$ at $t = 0$.
+To get the relation of $L$ and $L'$ we boost back the moving object to make it rest.
+Then we obtain that the position of the left side $(0, 0, 0)$ with $ct = 0$ is just $(0, 0, 0)$ with $ct' = 0$ immediately and that the position of the other side $(0, 0, L')$ with $ct = 0$ is transformed as
+\begin{align*}
+  ct &\mapsto ct' = \gamma (ct) + \gamma \beta z = \gamma \cdot 0 + \gamma \beta L' = \gamma \beta L', \\
+  x &\mapsto x' = x = 0, \\
+  y &\mapsto y' = y = 0, \\
+  z &\mapsto z' = \gamma \beta (ct) + \gamma z = \gamma \beta \cdot 0 + \gamma L' = \gamma L',
+\end{align*}
+of which the position must be $(0, 0, L)$.
+Therefore, we obtain that
+\begin{align*}
+  L' = L/\gamma.
+\end{align*}
+
+This is the well-known length contraction.
+But, as pointed out, there is an assumption about 'time', and it is not the case for 'seeing'.
+Remind that the 'other side' is not in the same time of the 'left side' because the light from the 'other side' travels with the velocity of light which is finite.
+In other word, what we see is lights from 'past', not 'present'.
+But the above measurement requires that the two side be in the same time.
+This is the difference.
+We should keep this in mind to visualize the situation.
+
+<h2>2. 2. The derivation of the Terrell's effect</h2>
+
+Now we consider the case for 'seeing by eyes or a camera'.
+Note again that the light our eyes or a camera catch is from past.
+We are now in the rest frame $O$ of objects while the observer moves at a speed of $v = \beta c$ and assume that at $t = 0$ the observer is at $(0, 0, 0)$.
+Let $(x, y, z)$ be the position at which the light comes and $r = \sqrt{x^2 + y^2 + z^2}$.
+The light moved $r$, so the travel takes $r/c$.
+In other words, the source of the light is at $t = -r/c$ and $(x, y, z)$.
+Now think about this position in the frame $O'$ of the observer.
+Let $(x', y', z')$ and $t'$ be the position of the source in $O'$.
+We can obtain the relation of $(ct, x, y, z)$ and $(ct', x', y', z')$ via Lorentz transformation, with $ct = -r$:
+\begin{align*}
+  ct' &= \gamma (ct) + \gamma \beta z = \gamma(r + \beta z), \\
+  x' &= x, \\
+  y' &= y, \\
+  z' &= \gamma \beta (ct) + \gamma z = \gamma(z + \beta r).
+\end{align*}
+Therefore, the position of the source $(x, y, z)$ is at $$(x, y, \gamma(z + \beta r))$$ in $O'$.
+This is the main formula of Terrell's effect, and all of it.
+Actually, it can be said that the below program is only calculating this transformation formula (except for the Doppler effect), although to realize this in 3D graphic with WebGL several hard techniques are applied.
+
+<h1>3. Demonstration</h1>
+
 <canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
 This browser does not suppot HTML5. Upgrade it.
 </canvas>
@@ -1036,6 +1134,13 @@ world : <select id = "inputselWorld" onchange = 'myLoadJSON(this.value);'>
 </tr>
 </table>
 <div id = "divDump2"></div>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
 </body>
 </html>
 

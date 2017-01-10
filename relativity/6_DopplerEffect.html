@@ -28,17 +28,17 @@ varying vec3 vecPosOrg;
 
 
 /*
-   The following two functions for HSL RGB are from 
+   The following two functions for HSL-to-RGB are from 
    
    http://stackoverflow.com/questions/180/function-for-creating-color-wheels
 */
 float myToRGB1(float fRm1, float fRm2, float fHue) {
-    if      (fHue > 360.0) fHue -= 360.0;
-    else if (fHue <   0.0) fHue += 360.0;
+    if      ( fHue > 360.0 ) fHue -= 360.0;
+    else if ( fHue <   0.0 ) fHue += 360.0;
     
-    if      (fHue <  60.0) fRm1 = fRm1 + (fRm2 - fRm1) * fHue / 60.0;
-    else if (fHue < 180.0) fRm1 = fRm2;
-    else if (fHue < 240.0) fRm1 = fRm1 + (fRm2 - fRm1) * (240.0 - fHue) / 60.0;
+    if      ( fHue <  60.0 ) fRm1 = fRm1 + ( fRm2 - fRm1 ) * fHue / 60.0;
+    else if ( fHue < 180.0 ) fRm1 = fRm2;
+    else if ( fHue < 240.0 ) fRm1 = fRm1 + ( fRm2 - fRm1 ) * ( 240.0 - fHue ) / 60.0;
     
     return fRm1;
 }
@@ -54,10 +54,10 @@ vec3 myHSLtoRGB(vec3 clrHSL) {
     fSaturation = clrHSL[ 1 ];
     fLuminance = clrHSL[ 2 ];
     
-    if (fSaturation == 0.0) {
+    if ( fSaturation == 0.0 ) {
         clrRGB[ 0 ] = clrRGB[ 1 ] = clrRGB[ 2 ] = fLuminance;
     } else {
-        if (fLuminance <= 0.5) {
+        if ( fLuminance <= 0.5 ) {
             fRm2 = fLuminance + fLuminance * fSaturation;
         } else {
             fRm2 = fLuminance + fSaturation - fLuminance * fSaturation;
