@@ -1,0 +1,229 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../../src/glMatrix-0.9.5.min.js"></script>
+
+<script type="text/javascript" src = "../../src/gl_wrapper.js"></script>
+
+<script language = "javascript">
+var glhMain;
+
+var frameBufferHead = null;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var meshbufPyramid, meshbufCube;
+
+var nTimeLast = 0;
+var fAnglePyramid = 0, fAngleCube = 0;
+
+
+function myCreateMeshes() {
+    meshbufPyramid = new MeshBuffer();
+    meshbufCube    = new MeshBuffer();
+    
+    // Pyramid
+    var arrVtxPyramid = [
+        // Front face
+         0.0,  1.0,  0.0,
+        -1.0, -1.0,  1.0,
+         1.0, -1.0,  1.0,
+
+        // Right face
+         0.0,  1.0,  0.0,
+         1.0, -1.0,  1.0,
+         1.0, -1.0, -1.0,
+
+        // Back face
+         0.0,  1.0,  0.0,
+         1.0, -1.0, -1.0,
+        -1.0, -1.0, -1.0,
+
+        // Left face
+         0.0,  1.0,  0.0,
+        -1.0, -1.0, -1.0,
+        -1.0, -1.0,  1.0
+    ];
+    
+    var arrClrPyramid = [
+        // Front face
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+
+        // Right face
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+
+        // Back face
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 1.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+
+        // Left face
+        1.0, 0.0, 0.0, 1.0,
+        0.0, 0.0, 1.0, 1.0,
+        0.0, 1.0, 0.0, 1.0
+    ];
+    
+    meshbufPyramid.insertVertexArray(glhMain, arrVtxPyramid, 12);
+    meshbufPyramid.insertColorArray(glhMain, arrClrPyramid, 12);
+    
+    // Cube
+    var arrVtxCube = [
+        // Front face
+        -1.0, -1.0,  1.0,
+         1.0, -1.0,  1.0,
+         1.0,  1.0,  1.0,
+        -1.0,  1.0,  1.0,
+
+        // Back face
+        -1.0, -1.0, -1.0,
+        -1.0,  1.0, -1.0,
+         1.0,  1.0, -1.0,
+         1.0, -1.0, -1.0,
+
+        // Top face
+        -1.0,  1.0, -1.0,
+        -1.0,  1.0,  1.0,
+         1.0,  1.0,  1.0,
+         1.0,  1.0, -1.0,
+
+        // Bottom face
+        -1.0, -1.0, -1.0,
+         1.0, -1.0, -1.0,
+         1.0, -1.0,  1.0,
+        -1.0, -1.0,  1.0,
+
+        // Right face
+         1.0, -1.0, -1.0,
+         1.0,  1.0, -1.0,
+         1.0,  1.0,  1.0,
+         1.0, -1.0,  1.0,
+
+        // Left face
+        -1.0, -1.0, -1.0,
+        -1.0, -1.0,  1.0,
+        -1.0,  1.0,  1.0,
+        -1.0,  1.0, -1.0
+    ];
+    
+    var arrIdxCube = [
+        0, 1, 2,      0, 2, 3,    // Front face
+        4, 5, 6,      4, 6, 7,    // Back face
+        8, 9, 10,     8, 10, 11,  // Top face
+        12, 13, 14,   12, 14, 15, // Bottom face
+        16, 17, 18,   16, 18, 19, // Right face
+        20, 21, 22,   20, 22, 23  // Left face
+    ];
+    
+    var arrClrCubePre = [
+        [1.0, 0.0, 0.0, 1.0], // Front face
+        [1.0, 1.0, 0.0, 1.0], // Back face
+        [0.0, 1.0, 0.0, 1.0], // Top face
+        [1.0, 0.5, 0.5, 1.0], // Bottom face
+        [1.0, 0.0, 1.0, 1.0], // Right face
+        [0.0, 0.0, 1.0, 1.0]  // Left face
+    ];
+    
+    var arrClrCube = [];
+    
+    for ( var i in arrClrCubePre ) {
+        for ( var j = 0 ; j < 4 ; j++ ) {
+            arrClrCube = arrClrCube.concat(arrClrCubePre[ i ]);
+        }
+    }
+    
+    meshbufCube.insertVertexArray(glhMain, arrVtxCube, 24);
+    meshbufCube.insertIndexArray(glhMain,  arrIdxCube, 36);
+    meshbufCube.insertColorArray(glhMain,  arrClrCube, 24);
+}
+
+
+function myDrawScene() {
+    glhMain.initDraw(false); // You can make the parameter empty in this case
+    
+    mat4.perspective(45, glhMain.getViewportRatio(), 0.1, 100.0, pMatrix);
+    
+    // Pyramid
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [-1.5, 0.0, -8.0]);
+    mat4.rotate(mvMatrix, fAnglePyramid, [0, 1, 0]);
+    
+    meshbufPyramid.drawMesh(glhMain, pMatrix, mvMatrix);
+    
+    // Cube
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [1.5, 0.0, -8.0]);
+    mat4.rotate(mvMatrix, fAngleCube, [1, 1, 1]);
+    
+    meshbufCube.drawMesh(glhMain, pMatrix, mvMatrix);
+}
+
+
+function myDrawPostEffect() {
+    glhMain.releaseFramebuffer(frameBufferHead);
+    
+    glhMain.initDraw(true);
+    glhMain.drawPost(frameBufferHead);
+    
+    return 0;
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow = new Date().getTime();
+    
+    if ( nTimeLast != 0) {
+        var nElapsed = nTimeNow - nTimeLast;
+        
+        fAnglePyramid += 1.0 *  (nElapsed * Math.PI) / 1000.0;
+        fAngleCube    += 0.75 * (nElapsed * Math.PI) / 1000.0;
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    window.setTimeout(myDoTick, 1000 / 60);
+    
+    frameBufferHead = glhMain.createFramebuffer();
+    
+    glhMain.launchFramebuffer(frameBufferHead);
+    myDrawScene();
+    myDrawPostEffect();
+    
+    glhMain.deleteFramebuffer(frameBufferHead);
+    
+    myMakeAnimation();
+}
+
+
+function myLaunchGL() {
+    var canvas = document.getElementById("canvasMain");
+    
+    glhMain = new glHeader();
+    glhMain.initGL(canvas);
+    
+    //frameBufferHead = glhMain.createFramebuffer();
+    glhMain.setUsingFramebuffer(true);
+    
+    myCreateMeshes();
+    
+    myDoTick();
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+</body>
+</html>
+
+
