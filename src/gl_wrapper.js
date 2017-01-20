@@ -88,15 +88,13 @@ g_strShaderCodeFragPost =
 g_strShaderCodeVtxPost = 
    "attribute vec3 a_vec3VertexPosition;\n" + 
    "\n" + 
-   "uniform vec2 u_vec2RateResolution;\n" + 
-   "\n" + 
    "varying vec2 vecTextureCoord;\n" + 
    "\n" + 
    "void main(void) {\n" + 
    "    gl_Position = vec4(a_vec3VertexPosition, 1.0);\n" + 
    "    \n" + 
-   "    vecTextureCoord.s = a_vec3VertexPosition.x / 2.0 * u_vec2RateResolution.s + 0.5;\n" + 
-   "    vecTextureCoord.t = a_vec3VertexPosition.y / 2.0 * u_vec2RateResolution.t + 0.5;\n" + 
+   "    vecTextureCoord.s = a_vec3VertexPosition.x / 2.0 + 0.5;\n" + 
+   "    vecTextureCoord.t = a_vec3VertexPosition.y / 2.0 + 0.5;\n" + 
    "}\n";
 
 
@@ -118,7 +116,12 @@ function glHeader() {
         return 0;
     };
     
+    this.addExtraVariablesPostProc = function(gl, shaderProgram) {
+        return 0;
+    };
+    
     this.bIsUsingFB = false;
+    this.dRatioFramebuffer = 1.0;
     
     this.bOnLight = false;
 }
@@ -134,13 +137,18 @@ glHeader.prototype.setShaderCodeFrag = function(strCode) {
 }
 
 
-glHeader.prototype.setShaderCodeFragPostProc = function(strCode) {
+glHeader.prototype.setShaderCodePost = function(strCode) {
     this.strShaderCodeFragPost = strCode;
 }
 
 
 glHeader.prototype.setFuncExtraVariables = function(funcVar) {
     this.addExtraVariables = funcVar;
+}
+
+
+glHeader.prototype.setFuncExtraVariablesPostProc = function(funcVar) {
+    this.addExtraVariablesPostProc = funcVar;
 }
 
 
@@ -235,9 +243,9 @@ glHeader.prototype.initShadersPostProc = function() {
         "a_vec3VertexPosition");
     this.gl.enableVertexAttribArray(this.postshaderProgram.vertexPositionAttribute);
     
-    this.postshaderProgram.vecRateResolution = this.gl.getUniformLocation(this.postshaderProgram, 
-        "u_vec2RateResolution");
     this.postshaderProgram.samplerUniform = this.gl.getUniformLocation(this.postshaderProgram, "u_Sampler");
+    
+    this.addExtraVariablesPostProc(this.gl, this.postshaderProgram);
 }
 
 
@@ -275,6 +283,15 @@ glHeader.prototype.initGL = function(canvas) {
     
     this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
     this.gl.enable(this.gl.DEPTH_TEST);
+    
+    this.nTypeFramebuffer = ( this.gl.getExtension("OES_texture_float") || 
+        this.gl.getExtension("MOZ_OES_texture_float") || 
+        this.gl.getExtension("WEBKIT_OES_texture_float") ? 
+        this.gl.FLOAT : this.gl.UNSIGNED_BYTE );
+    
+    this.bAbleLinearFramebuffer = ( this.gl.getExtension("OES_texture_float_linear") || 
+        this.gl.getExtension("MOZ_OES_texture_float_linear") || 
+        this.gl.getExtension("WEBKIT_OES_texture_float_linear") ? true : false );
 }
 
 
@@ -376,6 +393,11 @@ glHeader.prototype.getShaderProgram = function() {
 }
 
 
+glHeader.prototype.getPostShaderProgram = function() {
+    return this.postshaderProgram;
+}
+
+
 glHeader.prototype.getVtxPosAttrib = function() {
     return this.shaderProgram.vertexPositionAttribute;
 }
@@ -406,23 +428,18 @@ glHeader.prototype.getViewportHeight = function() {
 }
 
 
-glHeader.prototype.getSizeFramebuffer = function() {
-    var nWidth;
-    var nPower;
-    
-    nWidth = this.gl.viewportWidth - 1;
-    nPower = 1;
-    
-    for ( ; nWidth > 0 ; nWidth = parseInt(nWidth / 2) ) {
-        nPower *= 2;
-    }
-    
-    return nPower;
+glHeader.prototype.setViewportWidth = function(nWidth) {
+    this.gl.viewportWidth = nWidth;
+}
+
+
+glHeader.prototype.setViewportHeight = function(nHeight) {
+    this.gl.viewportHeight = nHeight;
 }
 
 
 glHeader.prototype.getViewportRatio = function() {
-    return ( !this.bIsUsingFB ? this.gl.viewportWidth / this.gl.viewportHeight : 1.0 );
+    return this.gl.viewportWidth / this.gl.viewportHeight;
 }
 
 
@@ -441,13 +458,122 @@ glHeader.prototype.setLightDirectional = function(arrClrDir, arrDirLight) {
 }
 
 
-glHeader.prototype.setViewportWidth = function(nWidth) {
-    this.gl.viewportWidth = nWidth;
+glHeader.prototype.setUniformVal1i = function(nProgram, strName, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniform1i(this.gl.getUniformLocation(shaderProgram, strName), val);
+    
+    return 0;
 }
 
 
-glHeader.prototype.setViewportHeight = function(nHeight) {
-    this.gl.viewportHeight = nHeight;
+glHeader.prototype.setUniformVal1f = function(nProgram, strName, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniform1f(this.gl.getUniformLocation(shaderProgram, strName), val);
+    
+    return 0;
+}
+
+
+glHeader.prototype.setUniformVal2fv = function(nProgram, strName, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniform2fv(this.gl.getUniformLocation(shaderProgram, strName), val);
+    
+    return 0;
+}
+
+
+glHeader.prototype.setUniformVal3fv = function(nProgram, strName, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniform3fv(this.gl.getUniformLocation(shaderProgram, strName), val);
+    
+    return 0;
+}
+
+
+glHeader.prototype.setUniformVal4fv = function(nProgram, strName, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniform4fv(this.gl.getUniformLocation(shaderProgram, strName), val);
+    
+    return 0;
+}
+
+
+glHeader.prototype.setUniformMtx3 = function(nProgram, strName, bFlip, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniformMatrix3fv(this.gl.getUniformLocation(shaderProgram, strName), bFlip, val);
+    
+    return 0;
+}
+
+
+glHeader.prototype.setUniformMtx4 = function(nProgram, strName, bFlip, val) {
+    var shaderProgram;
+    
+    if ( nProgram == 0 ) {
+        shaderProgram = this.shaderProgram;
+    } else if ( nProgram == 1 ) {
+        shaderProgram = this.postshaderProgram;
+    } else {
+        return -1;
+    }
+    
+    this.gl.uniformMatrix4fv(this.gl.getUniformLocation(shaderProgram, strName), bFlip, val);
+    
+    return 0;
 }
 
 
@@ -456,24 +582,13 @@ glHeader.prototype.initDraw = function(nStatePost) {
     
     var nViewportWidth, nViewportHeight;
     
-    nViewportWidth  = this.gl.viewportWidth;
-    nViewportHeight = this.gl.viewportHeight;
+    nViewportWidth  = this.dRatioFramebuffer * this.gl.viewportWidth;
+    nViewportHeight = this.dRatioFramebuffer * this.gl.viewportHeight;
     
-    if ( !this.bIsUsingFB ) {
+    if ( !this.bIsUsingFB || !nStatePost ) {
         this.useSceneProgram();
     } else {
-        nPower = this.getSizeFramebuffer();
-        
-        if ( !nStatePost ) {
-            this.useSceneProgram();
-            
-            nViewportWidth = nViewportHeight = nPower;
-        } else {
-            this.usePostProcProgram();
-            
-            this.gl.uniform2fv(this.postshaderProgram.vecRateResolution, 
-                [this.gl.viewportWidth / nPower, this.gl.viewportHeight / nPower]);
-        }
+        this.usePostProcProgram();
     }
     
     this.gl.viewport(0, 0, nViewportWidth, nViewportHeight);
@@ -485,7 +600,14 @@ glHeader.prototype.initDraw = function(nStatePost) {
 }
 
 
-glHeader.prototype.drawPost = function(frameBufferHead) {
+glHeader.prototype.drawPost = function(frameBufferHead, arrFramebufferSupp) {
+    var i;
+    
+    var arrID = [this.gl.TEXTURE1, this.gl.TEXTURE2, this.gl.TEXTURE3, 
+        this.gl.TEXTURE4, this.gl.TEXTURE5, this.gl.TEXTURE6, this.gl.TEXTURE7];
+    
+    var nNumFB = 0;
+    
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.bufVtxPostViewport);
     this.gl.vertexAttribPointer(this.postshaderProgram.vertexPositionAttribute, 
         this.bufVtxPostViewport.itemSize, this.gl.FLOAT, false, 0, 0);
@@ -494,21 +616,57 @@ glHeader.prototype.drawPost = function(frameBufferHead) {
     this.gl.bindTexture(this.gl.TEXTURE_2D, frameBufferHead.frameTexture);
     this.gl.uniform1i(this.postshaderProgram.samplerUniform, 0);
     
+    // To avoid 'no texture' warning, but it seems not working
+    for ( i = 0 ; i < arrID.length ; i++ ) {
+        this.gl.activeTexture(arrID[ i ]);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, frameBufferHead.frameTexture);
+    }
+    
+    if ( arrFramebufferSupp ) {
+        nNumFB = ( arrID.length >= arrFramebufferSupp.length ? 
+            arrFramebufferSupp.length : arrID.length );
+        
+        for ( i = 0 ; i < nNumFB ; i++ ) {
+            this.gl.activeTexture(arrID[ i ]);
+            this.gl.bindTexture(this.gl.TEXTURE_2D, arrFramebufferSupp[ i ].frameTexture);
+        }
+    }
+    
     this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, this.bufVtxPostViewport.numItems);
+    
+    this.gl.activeTexture(this.gl.TEXTURE0);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    
+    for ( i = 0 ; i < arrID.length ; i++ ) {
+        this.gl.activeTexture(arrID[ i ]);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    }
+}
+
+
+glHeader.prototype.bindTextureNull = function() {
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 }
 
 
 // Most of the following function is from http://learningwebgl.com/lessons/lesson16
 
 
-glHeader.prototype.createFramebuffer = function() {
+glHeader.prototype.createFramebuffer = function(bLinear, dRatio) {
     var frameBufferNew;
     var frameTextureNew;
     var renderBuffer;
     
     var nWidth, nHeight;
     
-    nWidth = nHeight = this.getSizeFramebuffer();
+    var nTypeFilter;
+    
+    if ( !dRatio ) {
+        dRatio = 1.0;
+    }
+    
+    nWidth  =  this.gl.viewportWidth  * dRatio;
+    nHeight =  this.gl.viewportHeight * dRatio;
     
     frameBufferNew = this.gl.createFramebuffer();
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, frameBufferNew);
@@ -521,11 +679,14 @@ glHeader.prototype.createFramebuffer = function() {
     
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
     this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_NEAREST);
+    
+    nTypeFilter = ( bLinear && this.bAbleLinearFramebuffer ? this.gl.LINEAR : this.gl.NEAREST );
+    
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, nTypeFilter);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, nTypeFilter);
     
     this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, nWidth, nHeight, 
-        0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+        0, this.gl.RGBA, this.nTypeFramebuffer, null);
     
     renderBuffer = this.gl.createRenderbuffer();
     this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, renderBuffer);
@@ -534,13 +695,13 @@ glHeader.prototype.createFramebuffer = function() {
     this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, 
         this.gl.TEXTURE_2D, frameTextureNew, 0);
     this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT, 
-        this.gl.RENDERBUFFER, renderBuffer);
+    this.gl.RENDERBUFFER, renderBuffer);
     
     this.gl.bindTexture(this.gl.TEXTURE_2D, null);
     this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
     
-    return {frameBuffer: frameBufferNew, frameTexture: frameTextureNew};
+    return {frameBuffer: frameBufferNew, frameTexture: frameTextureNew, dRatioFB: dRatio};
 }
 
 
@@ -553,15 +714,15 @@ glHeader.prototype.deleteFramebuffer = function(frameBufferHead) {
 glHeader.prototype.launchFramebuffer = function(frameBufferHead) {
     this.gl.bindTexture(this.gl.TEXTURE_2D, null);
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, frameBufferHead.frameBuffer);
+    
+    this.dRatioFramebuffer = frameBufferHead.dRatioFB;
 }
 
 
 glHeader.prototype.releaseFramebuffer = function(frameBufferHead) {
-    this.gl.bindTexture(this.gl.TEXTURE_2D, frameBufferHead.frameTexture);
-    this.gl.generateMipmap(this.gl.TEXTURE_2D);
-    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-    
     this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+    this.dRatioFramebuffer = 1.0;
 }
 
 
@@ -796,22 +957,66 @@ MeshBuffer.prototype.freeBuffer = function(glHeader) {
 
 
 function TextureBuffer(glHeader, strFilename) {
-    var gl = glHeader.getGL();
+    var gl;
     
-    var texCurr= gl.createTexture();
+    var texCurr;
+    
+    if ( !strFilename ) {
+        return;
+    }
+    
+    gl = glHeader.getGL();
+    
+    texCurr = gl.createTexture();
     texCurr.image = new Image();
     
     texCurr.image.onload = function() {
         gl.bindTexture(gl.TEXTURE_2D, texCurr);
         gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texCurr.image);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+        
+        gl.generateMipmap(gl.TEXTURE_2D);
+        
         gl.bindTexture(gl.TEXTURE_2D, null);
     };
     
     texCurr.image.src = strFilename;
     
+    this.texMain = texCurr;
+}
+
+
+TextureBuffer.prototype.createTextureFromData = function(glHeader, 
+        data, nWidth, nHeight, bIsFloat)
+{
+    var gl;
+    
+    var texCurr;
+    
+    gl = glHeader.getGL();
+    
+    texCurr = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texCurr);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, nWidth, nHeight, 0, 
+        gl.RGBA, ( !bIsFloat ? gl.UNSIGNED_BYTE : gl.FLOAT ), data);
+    
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    
+    gl.bindTexture(gl.TEXTURE_2D, null);
+    
+    this.texMain = texCurr;
+}
+
+
+TextureBuffer.prototype.setTexture = function(texCurr) {
     this.texMain = texCurr;
 }
 
@@ -829,6 +1034,15 @@ TextureBuffer.prototype.bindTexture = function(glHeader, nID) {
     
     gl.bindTexture(gl.TEXTURE_2D, this.texMain);
     glHeader.setSampler(nID);
+}
+
+
+TextureBuffer.prototype.freeBuffer = function(glHeader) {
+    var gl = glHeader.getGL();
+    
+    gl.deleteTexture(this.texMain);
+    
+    return 0;
 }
 
 

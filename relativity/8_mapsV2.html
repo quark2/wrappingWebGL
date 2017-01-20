@@ -8,7 +8,9 @@
 precision mediump float;
 
 uniform bool u_bTexture;
+
 uniform sampler2D u_Sampler;
+uniform sampler2D u_SamplerThermal;
 
 // The following uniform variables are added for Lorentz transformation
 uniform float u_fVelFrag;
@@ -17,6 +19,9 @@ uniform float u_fGammaFrag;
 uniform bool u_bIsOnDopplerEff;
 uniform bool u_bIsThermalObj;
 
+uniform vec2 u_vec2TexOffset;
+uniform vec2 u_vec2TexArea;
+
 varying vec3 vecLight;
 
 varying vec4 vecColor;
@@ -24,6 +29,61 @@ varying vec2 vecTextureCoord;
 
 // The following varying variables are added for Lorentz transformation
 varying vec3 vecPosOrg;
+
+
+/*
+   The following two functions for HSL-to-RGB are from 
+   
+   http://www.rapidtables.com/convert/color/rgb-to-hsl.htm
+*/
+vec3 myRGBtoHSL(vec3 clrRGB) {
+    vec3 clrHSL; // x : H, y : S, z : L
+    
+    float fMin, fMax;
+    float fDelta;
+    
+    fMin = fMax = clrRGB.r;
+    
+    if ( fMin > clrRGB.g ) {
+        fMin = clrRGB.g;
+    }
+    
+    if ( fMin > clrRGB.b ) {
+        fMin = clrRGB.b;
+    }
+    
+    if ( fMax < clrRGB.g ) {
+        fMax = clrRGB.g;
+    }
+    
+    if ( fMax < clrRGB.b ) {
+        fMax = clrRGB.b;
+    }
+    
+    fDelta = fMax - fMin;
+    clrHSL.z = 0.5 * ( fMax + fMin );
+    
+    if ( fDelta == 0.0 ) {
+        clrHSL.x = 0.0;
+        clrHSL.y = 0.0;
+    } else {
+        if ( fMax == clrRGB.r ) {
+            clrHSL.x = 60.0 * ( ( clrRGB.g - clrRGB.b ) / fDelta + 0.0 );
+            
+            if ( clrHSL.x < -0.00001 ) {
+                clrHSL.x += 360.0;
+            }
+        } else if ( fMax == clrRGB.g ) {
+            clrHSL.x = 60.0 * ( ( clrRGB.b - clrRGB.r ) / fDelta + 2.0 );
+        } else if ( fMax == clrRGB.b ) {
+            clrHSL.x = 60.0 * ( ( clrRGB.r - clrRGB.g ) / fDelta + 4.0 );
+        }
+        
+        clrHSL.y = fDelta / ( 1.0 - abs( 2.0 * clrHSL.z - 1.0 ) );
+    }
+    
+    return clrHSL;
+}
 
 
 /*
@@ -107,12 +167,41 @@ vec3 myApplyDopplerEffToSimpleReflection(vec3 clrHSL, vec3 vecPos) {
 }
 
 
-vec3 myCalcColorOfThermalObj(vec2 texCoord) {
-    vec3 clrHSL;
+vec3 myCalcColorOfThermalObj(vec2 texCoord, vec3 vecPos) {
+    vec3 clrThermalFluc;
+    vec3 clrRGB;
     
-    clrHSL = texture2D(u_Sampler, vec2(vecTextureCoord.s, vecTextureCoord.t)).rgb;
+    float fTemperMax = 10240.0;
     
-    return clrHSL;
+    float fTemperMain = 4000.0;
+    float fTemperFluc = 500.0;
+    
+    float fWeight = 4.0;
+    
+    vec3 vecDir;
+    float fShiftPar;
+    
+    vec2 vec2PosColor, vec2PosOrder;
+    
+    // Calculating the factor from Doppler effect
+    // Note that the light 'comes' to the camera, the negative sign is needed
+    vecDir = normalize(vecPos);
+    fShiftPar = u_fGammaFrag * 1.0 + u_fGammaFrag * u_fVelFrag * ( -vecDir[ 2 ] );
+    
+    clrThermalFluc = texture2D(u_Sampler, texCoord).rgb;
+    
+    vec2PosColor.s = ( fTemperMain + fTemperFluc * ( clrThermalFluc.r - 0.5 ) ) * fShiftPar / fTemperMax;
+    vec2PosColor.t = 0.5;
+    
+    if ( vec2PosColor.s > 0.9 ) { // To avoid the topology (1.0 = 0.0)
+        // The below is from the Stefan-Bolzmann law ; 0.6561 = 0.9^4
+        fWeight *= vec2PosColor.s * vec2PosColor.s * vec2PosColor.s * vec2PosColor.s / 0.6561;
+        vec2PosColor.s = 0.9;
+    }
+    
+    clrRGB = fWeight * texture2D(u_SamplerThermal, vec2PosColor).rgb;
+    
+    return clrRGB;
 }
 
 
@@ -121,30 +210,32 @@ void main(void) {
     vec3 vecHSL;
     vec3 vecRGB;
     
-    if ( u_bTexture ) {
-        vec4MainClr = texture2D(u_Sampler, vec2(vecTextureCoord.s, vecTextureCoord.t));
-    } else {
-        vec4MainClr = vecColor;
-    }
+    vec2 vecTexCoordActual;
     
-    // To treat the frequency we need to represent the color in HSL system
-    vecHSL = vec4MainClr.rgb;
+    vec4MainClr = vecColor;
+    
+    vecTexCoordActual.s = u_vec2TexOffset.s + u_vec2TexArea.s * vecTextureCoord.s;
+    vecTexCoordActual.t = u_vec2TexOffset.t + u_vec2TexArea.t * vecTextureCoord.t;
     
     if ( !u_bIsThermalObj ) {
+        // To treat the frequency we need to represent the color in HSL system
+        vecHSL = ( u_bTexture ? myRGBtoHSL(texture2D(u_Sampler, vecTexCoordActual).rgb) : 
+            vec4MainClr.rgb );
+        
         if ( u_bIsOnDopplerEff ) {
             vecHSL = myApplyDopplerEffToSimpleReflection(vecHSL, vecPosOrg);
         }
         
-        vecRGB = myHSLtoRGB(vecHSL);
+        vecRGB = myHSLtoRGB(vecHSL) * vecLight;
     } else {
-        vecRGB = myCalcColorOfThermalObj(vecTextureCoord);
+        vecRGB = myCalcColorOfThermalObj(vecTexCoordActual, vecPosOrg);
         vec4MainClr.a = 1.0;
     }
     
     // Now our job is almost done while going back to the RGB is remaining
     vec4MainClr.rgb = vecRGB;
     
-    gl_FragColor = vec4(vec4MainClr.rgb * vecLight, vec4MainClr.a);
+    gl_FragColor = vec4(vec4MainClr.rgb, vec4MainClr.a);
 }
 </script>
 
@@ -244,13 +335,85 @@ void main(void) {
 }
 </script>
 
+<script id = "fscodePostEff" type = "x-shader/x-fragment">
+precision mediump float;
+
+uniform sampler2D u_Sampler;
+
+uniform sampler2D u_Sampler4;
+
+// For configuration : the below line will be replaced by something
+int nDrawMode_ExtractExceed = 1;
+int nDrawMode_ScaleDown     = 2;
+int nDrawMode_Blur          = 3;
+
+uniform int u_nModeDraw;
+
+uniform vec2 u_vecSizePixel;
+
+varying vec2 vecTextureCoord;
+
+
+float myCalcGaussianWeight(vec2 vecX, float fSigma) {
+    return 0.06 * exp(-( vecX.s * vecX.s + vecX.t * vecX.t ) * 0.5 / fSigma / fSigma ) / fSigma;
+}
+
+
+void main(void) {
+    const int nSize = 4;
+    
+    vec3 vecMainClr;
+    
+    vec2 vec2Delta;
+    vec3 clrSample;
+    
+    vecMainClr = texture2D(u_Sampler, vecTextureCoord).rgb;
+    
+    if ( u_nModeDraw == nDrawMode_ExtractExceed ) {
+        if ( vecMainClr.r < 1.5 ) {vecMainClr.r = 0.0;}
+        if ( vecMainClr.g < 1.3 ) {vecMainClr.g = 0.0;}
+        if ( vecMainClr.b < 1.1 ) {vecMainClr.b = 0.0;}
+    } else if ( u_nModeDraw == nDrawMode_ScaleDown ) {
+        // Nothing to do anything
+    } else if ( u_nModeDraw == nDrawMode_Blur ) {
+        clrSample = vec3(0.0, 0.0, 0.0);
+        
+        for ( int i = -nSize ; i <= nSize ; i++ ) {
+            for ( int j = -nSize ; j <= nSize ; j++ ) {
+                vec2Delta.s = float(j) * u_vecSizePixel.s;
+                vec2Delta.t = float(i) * u_vecSizePixel.t;
+                
+                clrSample += myCalcGaussianWeight(vec2Delta, 5.0) * 
+                    texture2D(u_Sampler, vecTextureCoord + vec2Delta).rgb;
+            }
+        }
+        
+        vecMainClr = clrSample;
+    } else if ( u_nModeDraw == 0 ) {
+        vecMainClr += texture2D(u_Sampler4,  vecTextureCoord).rgb * 0.3015;
+    }
+    
+    gl_FragColor = vec4(vecMainClr, 1.0);
+}
+</script>
+
 <script language = "javascript">
 var glhMain;
 
 var frameBufferHead = null;
-var nSizeFBCurr = 0;
+var frameBufferExceed = null;
 
-var fFFar = 32 * 1048576.0;
+var frameBufferD4  = null;
+var frameBufferB4  = null;
+
+var nDrawMode_ExtractExceed = 1;
+var nDrawMode_ScaleDown     = 2;
+var nDrawMode_Blur          = 3;
+
+var nWidthCurr  = 0;
+var nHeightCurr = 0;
+
+var fFFar = 2048.0;
 
 var pMatrix  = mat4.create();
 var mvMatrix = mat4.create();
@@ -265,6 +428,9 @@ var vecPosCamera = [0.0, 0.0, 0.0];
 
 var arrObjs = [];
 var arrStars = [];
+
+var arrTexs = [];
+var bufTexThermal;
 
 var bufMeshStar;
 var arrVtxStar;
@@ -289,7 +455,7 @@ var nTimeLast = 0;
 var bufMeshBtns;
 var fSizeBtn;
 
-var bIsLoading = true;
+var nLoading = 0;
 
 
 /*
@@ -315,6 +481,11 @@ var bIsLoading = true;
       rotation     : information for rotation of the mesh
                      the length is the rotation angle, while the direction is the rotation axis
       position     : position of the mesh in the world
+      
+      texoffsetu*  : offset in the coordinate of texture
+      texoffsetv*  
+      texareau*    : actual area in the coordinate of texture
+      texareav*    
       
       transparent* : indicating that this object is transparent
       radiation*   : this object is thermal radiating
@@ -354,6 +525,12 @@ function myLoadWorldFromJSON(strDataJSON) {
         delete bufMesh;
     }
     
+    for ( ; arrTexs.length > 0 ; ) {
+        texBuf = arrTexs.pop();
+        texBuf.freeBuffer(glhMain);
+        delete texBuf;
+    }
+    
     // Parsing the JSON content
     pData = JSON.parse(strDataJSON);
     
@@ -390,6 +567,27 @@ function myLoadWorldFromJSON(strDataJSON) {
             bufMesh.setUniformColor(glhMain, pData.color_overall);
         }
         
+        if ( "texid" in pData.objs[ i ] && "texcoords" in pData.objs[ i ] ) {
+            var dTexOffsetU, dTexOffsetV;
+            var dTexAreaU, dTexAreaV;
+            
+            bufMesh.nIDTex = pData.objs[ i ].texid;
+            bufMesh.insertTextureArray(glhMain, objPolyData.texcoords, nNumVtx);
+            
+            dTexOffsetU = ( "texoffsetu" in pData.objs[ i ] ? pData.objs[ i ].texoffsetu : 0.0 );
+            dTexOffsetV = ( "texoffsetv" in pData.objs[ i ] ? pData.objs[ i ].texoffsetv : 0.0 );
+            
+            dTexAreaU = ( "texareau" in pData.objs[ i ] ? pData.objs[ i ].texareau: 1.0 );
+            dTexAreaV = ( "texareav" in pData.objs[ i ] ? pData.objs[ i ].texareav: 1.0 );
+            
+            bufMesh.vec2TexOffset = [dTexOffsetU, dTexOffsetV];
+            bufMesh.vec2TexArea   = [dTexAreaU,   dTexAreaV];
+        } else {
+            bufMesh.nIDTex = -1;
+        }
+        
+        bufMesh.nIsRadiating = ( "radiation" in pData.objs[ i ] && pData.objs[ i ].radiation );
+        
         // Preparing to calculate matrix
         matMVPoly = mat4.create();
         mat4.identity(matMVPoly);
@@ -425,7 +623,13 @@ function myLoadWorldFromJSON(strDataJSON) {
         arrObjs.push(bufMesh);
     }
     
-    bIsLoading = false;
+    if ( "textures" in pData ) {
+        for ( i = 0 ; i < pData.textures.length ; i++ ) {
+            arrTexs.push(new TextureBuffer(glhMain, pData.textures[ i ]));
+        }
+    }
+    
+    myCreateTextureThermalInfo();
     
     delete pData;
     
@@ -513,6 +717,45 @@ function myCreateStars() {
 }
 
 
+function myCreateTextureThermalInfo() {
+    var requestJSON = new XMLHttpRequest();
+    
+    requestJSON.open("GET", "thermal_info.json");
+    
+    requestJSON.onreadystatechange = function() {
+        if ( requestJSON.readyState == 4 ) {
+            var i;
+            
+            var gl;
+            
+            var pData;
+            var pPixelThermal;
+            
+            var texThermal;
+            
+            pData = JSON.parse(requestJSON.responseText);
+            
+            pPixelThermal = [];
+            
+            for ( i = 0 ; i < 4 ; i++ ) {
+                pPixelThermal = pPixelThermal.concat(pData);
+            }
+            
+            bufTexThermal = new TextureBuffer();
+            bufTexThermal.createTextureFromData(glhMain, new Float32Array(pPixelThermal), 
+                2048, 4, true);
+            
+            nLoading -= 1;
+        }
+    };
+    
+    nLoading += 1;
+    requestJSON.send();
+    
+    return 0;
+}
+
+
 function myCreateBtnForMom() {
     var arrVtx, arrIdx;
     
@@ -545,30 +788,16 @@ function myCreateBtnForMom() {
 
 // Putting the information of observers into the shader program
 function mySetConfTransformation(vecPosCenter, gfVel, gfGamma, bIsStar) {
-    var gl = glhMain.getGL();
-    var shaderProgram = glhMain.getShaderProgram();
+    glhMain.setUniformVal3fv(0, "u_vecPosCenter", vecPosCenter);
+    glhMain.setUniformVal1f(0,  "u_fVelVtx",      gfVel);
+    glhMain.setUniformVal1f(0,  "u_fGammaVtx",    gfGamma);
     
-    gl.uniform3fv(shaderProgram.vecPosCenter, vecPosCenter);
-    gl.uniform1f(shaderProgram.fVelVtx,   gfVel);
-    gl.uniform1f(shaderProgram.fGammaVtx, gfGamma);
+    glhMain.setUniformVal1f(0, "u_fVelFrag",   gfVel);
+    glhMain.setUniformVal1f(0, "u_fGammaFrag", gfGamma);
     
-    gl.uniform1f(shaderProgram.fVelFrag,   gfVel);
-    gl.uniform1f(shaderProgram.fGammaFrag, gfGamma);
-    
-    gl.uniform1i(shaderProgram.bIsStar,    bIsStar);
-    gl.uniform1f(shaderProgram.fSizeStarX, fSizeStarX);
-    gl.uniform1f(shaderProgram.fSizeStarY, fSizeStarY);
-    
-    return 0;
-}
-
-
-function mySetModeDopplerEffect(bOnOff) {
-    var gl = glhMain.getGL();
-    var shaderProgram = glhMain.getShaderProgram();
-    
-    gl.uniform1i(shaderProgram.bIsOnDopplerEff, bOnOff);
-    gl.uniform1i(shaderProgram.bIsThermalObj, false);
+    glhMain.setUniformVal1i(0, "u_bIsStar",    bIsStar);
+    glhMain.setUniformVal1f(0, "u_fSizeStarX", fSizeStarX);
+    glhMain.setUniformVal1f(0, "u_fSizeStarY", fSizeStarY);
     
     return 0;
 }
@@ -576,11 +805,8 @@ function mySetModeDopplerEffect(bOnOff) {
 
 // Putting the matrices for arranging of a given mesh in the 'world'
 function mySetMatrixWorld(matMVWorld, matNWorld) {
-    var gl = glhMain.getGL();
-    var shaderProgram = glhMain.getShaderProgram();
-    
-    gl.uniformMatrix4fv(shaderProgram.matMVWorld, false, matMVWorld);
-    gl.uniformMatrix3fv(shaderProgram.matNWorld,  false, matNWorld);
+    glhMain.setUniformMtx4(0, "u_matMVWorld", false, matMVWorld);
+    glhMain.setUniformMtx3(0, "u_matNWorld",  false, matNWorld);
     
     return 0;
 }
@@ -629,12 +855,9 @@ function mySetCanvasSizeFromSelection() {
 }
 
 
-// Initializing the scene
-function myInitScene(gfVel, gfGamma) {
+function myUpdateFrameInfo() {
     var nWidth;
     var nHeight;
-    
-    var nSizeFB;
     
     var canvasMain = document.getElementById("canvasMain");
     
@@ -663,23 +886,40 @@ function myInitScene(gfVel, gfGamma) {
     glhMain.setViewportWidth(nWidth);
     glhMain.setViewportHeight(nHeight);
     
-    nSizeFB = glhMain.getSizeFramebuffer();
-    
     // Size of star = 2 px * 2 px
-    fSizeStarX = 2.0 / nSizeFB;
-    fSizeStarY = 2.0 / nSizeFB;
+    fSizeStarX = 2.0 / nWidth;
+    fSizeStarY = 2.0 / nHeight;
     
-    if ( nSizeFBCurr != nSizeFB ) {
+    if ( nWidthCurr != nWidth || nHeightCurr != nHeight ) {
+        if ( frameBufferHead ) {
+            glhMain.deleteFramebuffer(frameBufferHead);
+            glhMain.deleteFramebuffer(frameBufferExceed);
+            
+            glhMain.deleteFramebuffer(frameBufferD4);
+            glhMain.deleteFramebuffer(frameBufferB4);
+        }
+        
         frameBufferHead = glhMain.createFramebuffer();
-        nSizeFBCurr = nSizeFB;
+        frameBufferExceed = glhMain.createFramebuffer();
+        
+        frameBufferD4  = glhMain.createFramebuffer(true, 0.25);
+        frameBufferB4  = glhMain.createFramebuffer(true, 0.25);
+        
+        nWidthCurr  = nWidth;
+        nHeightCurr = nHeight;
     }
     
-    glhMain.launchFramebuffer(frameBufferHead);
+    return 0;
+}
+
+
+// Initializing the scene
+function myInitScene(gfVel, gfGamma, frameBufferCurr) {
+    glhMain.launchFramebuffer(frameBufferCurr);
     glhMain.initDraw();
     
     // Set the perspective matrix
     // The far plane is set so far to show stars which are far and far away
-    //mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 
     mat4.perspective(45, glhMain.getViewportRatio(), 0.1, fFFar, pMatrix);
     
     return 0;
@@ -698,7 +938,9 @@ function myDrawScene(gfVel, gfGamma) {
     mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
     
     // Draw objects
-    mySetModeDopplerEffect(false); // Doppler effect is not applied to stars
+    // At first, drawing stars; all special options should be off
+    glhMain.setUniformVal1i(0, "u_bIsOnDopplerEff", false); // Doppler effect is not applied to stars
+    glhMain.setUniformVal1i(0, "u_bIsThermalObj", false); // Thermal is too
     myDrawStars(gfVel, gfGamma);
     
     // Set the configuration for light
@@ -720,11 +962,26 @@ function myDrawScene(gfVel, gfGamma) {
     
     // Make configuration for drawing objects
     mySetConfTransformation(vecPosCamera, gfVel, gfGamma, false);
-    mySetModeDopplerEffect(bIsOnDopplerEff);
+    glhMain.setUniformVal1i(0, "u_bIsOnDopplerEff", bIsOnDopplerEff);
     
     // Draw objects
     for ( i = 0 ; i < arrObjs.length ; i++ ) {
         mySetMatrixWorld(arrObjs[ i ].matMVWorld, arrObjs[ i ].matMVWorldNormal);
+        
+        glhMain.setUniformVal1i(0, "u_bIsThermalObj", arrObjs[ i ].nIsRadiating);
+        
+        if ( arrObjs[ i ].nIsRadiating ) {
+            bufTexThermal.bindTexture(glhMain, 1);
+            glhMain.setUniformVal1i(0, "u_SamplerThermal", 1);
+        }
+        
+        if ( arrObjs[ i ].nIDTex >= 0 ) {
+            arrTexs[ arrObjs[ i ].nIDTex ].bindTexture(glhMain, 0); // The 0 should be modified
+            
+            glhMain.setUniformVal2fv(0, "u_vec2TexOffset", arrObjs[ i ].vec2TexOffset);
+            glhMain.setUniformVal2fv(0, "u_vec2TexArea",   arrObjs[ i ].vec2TexArea);
+        }
+        
         arrObjs[ i ].drawMesh(glhMain, pMatrix, mvMatrix);
     }
     
@@ -733,11 +990,48 @@ function myDrawScene(gfVel, gfGamma) {
 }
 
 
-function myDrawPostEffect() {
-    glhMain.releaseFramebuffer(frameBufferHead);
+function mySetPixelSizeInPostDraw() {
+    glhMain.setUniformVal2fv(1, "u_vecSizePixel", 
+        [1.0 / glhMain.getViewportWidth(), 1.0 / glhMain.getViewportHeight()]);
     
+    return 0;
+}
+
+
+function myDrawAtomOfPostEffect(frameBufferDst, frameBufferSrc, nMode) {
+    glhMain.launchFramebuffer(frameBufferDst);
     glhMain.initDraw(true);
-    glhMain.drawPost(frameBufferHead);
+    glhMain.setUniformVal1i(1, "u_nModeDraw", nMode);
+    mySetPixelSizeInPostDraw();
+    glhMain.drawPost(frameBufferSrc);
+    glhMain.releaseFramebuffer(frameBufferDst);
+}
+
+
+function myDrawPostEffect() {
+    // Extracting exceeding lights
+    myDrawAtomOfPostEffect(frameBufferExceed, frameBufferHead, nDrawMode_ExtractExceed);
+    
+    // Scale down
+    myDrawAtomOfPostEffect(frameBufferD4,  frameBufferExceed, nDrawMode_ScaleDown);
+    
+    // Applying blur effect
+    myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
+    
+    myDrawAtomOfPostEffect(frameBufferD4,  frameBufferB4,  nDrawMode_Blur);
+    myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
+    myDrawAtomOfPostEffect(frameBufferD4,  frameBufferB4,  nDrawMode_Blur);
+    myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
+    myDrawAtomOfPostEffect(frameBufferD4,  frameBufferB4,  nDrawMode_Blur);
+    myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
+    
+    glhMain.bindTextureNull();
+    glhMain.initDraw(true);
+    
+    glhMain.setUniformVal1i(1, "u_nModeDraw", 0);
+    glhMain.setUniformVal1i(1, "u_Sampler4",  1);
+    
+    glhMain.drawPost(frameBufferHead, [frameBufferB4]);
     
     return 0;
 }
@@ -770,7 +1064,7 @@ function myDoTick() {
     // Running frame up
     requestAnimationFrame(myDoTick, 1000 / 60);
     
-    if ( bIsLoading ) {
+    if ( nLoading > 0 ) {
         return 0;
     }
     
@@ -782,10 +1076,15 @@ function myDoTick() {
     gfVel = gfMom / Math.sqrt(1 + gfMom * gfMom);
     gfGamma = 1.0 / Math.sqrt(1 - gfVel * gfVel);
     
-    // Okay, do it
-    myInitScene(gfVel, gfGamma);
+    // Updating configurations for frame
+    myUpdateFrameInfo();
     
+    // Okay, do it
+    myInitScene(gfVel, gfGamma, frameBufferHead);
     myDrawScene(gfVel, gfGamma);
+    glhMain.releaseFramebuffer(frameBufferHead);
+    
+    // Doing post effect
     myDrawPostEffect();
     
     myMakeAnimation(gfVel);
@@ -885,11 +1184,12 @@ function myLoadJSON(strPath) {
     
     requestJSON.onreadystatechange = function() {
         if ( requestJSON.readyState == 4 ) {
-            bIsLoading = true;
             myLoadWorldFromJSON(requestJSON.responseText);
+            nLoading -= 1;
         }
     };
     
+    nLoading += 1;
     requestJSON.send();
     
     return 0;
@@ -899,6 +1199,7 @@ function myLoadJSON(strPath) {
 function mySetupGLHeaderForRelativity() {
     var strShaderVtxCode;
     var strShaderFragCode;
+    var strShaderPostCode;
     
     var objNext;
     
@@ -930,27 +1231,19 @@ function mySetupGLHeaderForRelativity() {
     
     glhMain.setShaderCodeFrag(strShaderFragCode);
     
-    // Getting points for accessing the variables of shaders
-    glhMain.setFuncExtraVariables(function(gl, shaderProgram) {
-        shaderProgram.matMVWorld = gl.getUniformLocation(shaderProgram, "u_matMVWorld");
-        shaderProgram.matNWorld  = gl.getUniformLocation(shaderProgram, "u_matNWorld");
+    // Loading the fragment shader code
+    strShaderPostCode = "";
+    objNext = document.getElementById("fscodePostEff").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderPostCode += objNext.textContent;
+        }
         
-        shaderProgram.vecPosCenter = gl.getUniformLocation(shaderProgram, "u_vecPosCenter");
-        shaderProgram.fVelVtx      = gl.getUniformLocation(shaderProgram, "u_fVelVtx");
-        shaderProgram.fGammaVtx    = gl.getUniformLocation(shaderProgram, "u_fGammaVtx");
-        
-        shaderProgram.fVelFrag   = gl.getUniformLocation(shaderProgram, "u_fVelFrag");
-        shaderProgram.fGammaFrag = gl.getUniformLocation(shaderProgram, "u_fGammaFrag");
-        
-        shaderProgram.bIsStar      = gl.getUniformLocation(shaderProgram, "u_bIsStar");
-        shaderProgram.fSizeStarX = gl.getUniformLocation(shaderProgram, "u_fSizeStarX");
-        shaderProgram.fSizeStarY = gl.getUniformLocation(shaderProgram, "u_fSizeStarY");
-        
-        shaderProgram.bIsOnDopplerEff = gl.getUniformLocation(shaderProgram, "u_bIsOnDopplerEff");
-        shaderProgram.bIsThermalObj = gl.getUniformLocation(shaderProgram, "u_bIsThermalObj");
-        
-        return 0;
-    });
+        objNext = objNext.nextSibling;
+    }
+    
+    glhMain.setShaderCodePost(strShaderPostCode);
     
     return 0;
 }
@@ -977,8 +1270,6 @@ function myLaunchGL() {
     myCreateStars();
     myCreateBtnForMom();
     
-    //myCreateFrameBuffer();
-    //frameBufferHead = glhMain.createFramebuffer();
     glhMain.setUsingFramebuffer(true);
     
     // Adding event listeners
@@ -1093,6 +1384,8 @@ world : <select id = "inputselWorld" onchange = 'myLoadJSON(this.value);'>
   <option value = "worldmodel_boxes_allblue.json">boxes - only blue</option>
   <option value = "worldmodel_spheres.json">spheres</option>
   <option value = "worldmodel_utah_teapots.json">Utah teapots</option>
+  <option value = "worldmodel_stars.json">Stars</option>
+  <option value = "worldmodel_buildings.json" selected>Town</option>
 </select>&nbsp;&nbsp;
 <label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
 <input type = "button" value = "Fullscreen" onclick = 'mySetFullscreen();'>&nbsp;
