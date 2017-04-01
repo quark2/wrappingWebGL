@@ -1,0 +1,57 @@
+<html>
+<head>
+<script language = "javascript">
+var canvasDam;
+var canvasTransistor;
+
+var imgDam;
+var imgTransistor;
+
+
+function myDrawScene() {
+    canvasDam.drawImage(imgDam, 0, 0);
+    canvasTransistor.drawImage(imgTransistor, 0, 0, 480, 300);
+    
+    return 0;
+}
+
+
+function myMakeAnimation() {
+    
+    
+    return 0;
+}
+
+
+function myDoTick() {
+    window.setTimeout(myDoTick, 1000 / 60);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myInitProgram() {
+    canvasDam = document.getElementById("canvasDam").getContext("2d");
+    canvasTransistor = document.getElementById("canvasTransistor").getContext("2d");
+    
+    imgDam = new Image();
+    imgDam.src = "dam.png";
+    
+    imgTransistor = new Image();
+    imgTransistor.src = "transistor.png";
+    
+    myDoTick();
+    
+    return 0;
+}
+</script>
+</head>
+<body onload = "myInitProgram()">
+<table border = 0>
+<tr>
+<td><canvas id = "canvasDam" width = 480 height = 360></canvas></td>
+<td><canvas id = "canvasTransistor" width = 480 height = 360></canvas></td>
+</tr>
+</table>
+</body>
+</html>

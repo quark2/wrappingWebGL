@@ -1,0 +1,367 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+
+<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
+
+<script id = "fscodeWireChamber" type = "x-shader/x-fragment">
+precision mediump float;
+
+uniform bool u_bIsTrace;
+uniform float u_fTime;
+
+varying vec3 vecLight;
+
+varying vec4 vecColor;
+varying vec3 vecPosInTrace;
+
+void main(void) {
+    vec4 vec4MainClr;
+    
+    if ( !u_bIsTrace ) {
+        vec4MainClr = vec4(vecColor.rgb * vecLight, vecColor.a);
+    } else {
+        float fW;
+        float fAlpha;
+        
+        fW = vecPosInTrace.y * 15.0 + 50.0;
+        fAlpha = 0.0;
+        
+        if ( fW >= 0.0 ) {
+            fAlpha = sqrt(fW * exp(-sqrt(fW)));
+        }
+        
+        vec4MainClr = vec4(1.0, 1.0, 1.0, fAlpha);
+    }
+    
+    gl_FragColor = vec4MainClr;
+}
+</script>
+
+<script id = "vscodeWireChamber" type = "x-shader/x-vertex">
+attribute vec3 a_vec3VertexPosition;
+attribute vec4 a_vec4VertexColor;
+attribute vec3 a_vec3VertexNormal;
+attribute vec2 a_vec2TextureCoord;
+
+uniform mat4 u_matP;
+uniform mat4 u_matMV;
+uniform mat3 u_matN;
+
+uniform mat4 u_matWorld;
+uniform mat3 u_matNWorld;
+
+uniform vec4 u_vecClrUniform;
+
+uniform vec3 u_vecClrAmb;
+uniform vec3 u_vecClrDir;
+uniform vec3 u_vecDirLight;
+
+uniform bool u_bLight;
+uniform bool u_bColored;
+uniform bool u_bTexture;
+
+uniform bool u_bIsWire;
+
+uniform vec3 u_vec3Hit1;
+uniform vec3 u_vec3Hit2;
+
+varying vec3 vecLight;
+
+varying vec4 vecColor;
+varying vec2 vecTextureCoord;
+
+varying vec3 vecPosInTrace;
+
+void main(void) {
+    vec4 vecColorMain;
+    
+    vec4 vecColorHit = vec4(1.0, 0.0, 0.0, 1.0);
+    float fWidth, fWidthSqr, fXExp, fValExp;
+    
+    float fWeight1, fWeight2, fWeightCurr;
+    
+    gl_Position = u_matP * u_matMV * u_matWorld * vec4(a_vec3VertexPosition, 1.0);
+    
+    if ( u_bLight ) {
+        vec3 vec3NorTrans = u_matN * u_matNWorld * a_vec3VertexNormal;
+        float fWeightDir = max(dot(vec3NorTrans, u_vecDirLight), 0.0);
+        vecLight = u_vecClrAmb + u_vecClrDir * fWeightDir;
+    } else {
+        vecLight = vec3(1.0, 1.0, 1.0);
+    }
+    
+    vecColorMain = ( u_bColored ? a_vec4VertexColor : u_vecClrUniform );
+    fWidth = 1.4 / 40.0 * 1.3;
+    fWidthSqr = fWidth * fWidth;
+    
+    fWeight1 = ( u_vec3Hit1.y >= 0.0 ? exp(-u_vec3Hit1.y) : 0.0 );
+    fWeight2 = ( u_vec3Hit2.y >= 0.0 ? exp(-u_vec3Hit2.y) : 0.0 );
+    
+    if ( u_bIsWire ) {
+        if ( -1.43 > a_vec3VertexPosition.x || a_vec3VertexPosition.x > 1.43 ) { // x-wires
+            fXExp = a_vec3VertexPosition.z - u_vec3Hit1.z;
+            fWeightCurr = fWeight1 * exp(-fXExp * fXExp / fWidthSqr);
+            vecColorMain = ( 1.0 - fWeightCurr ) * vecColorMain + fWeightCurr * vecColorHit;
+            
+            fXExp = a_vec3VertexPosition.z - u_vec3Hit2.z;
+            fWeightCurr = fWeight2 * exp(-fXExp * fXExp / fWidthSqr);
+            vecColorMain = ( 1.0 - fWeightCurr ) * vecColorMain + fWeightCurr * vecColorHit;
+        } else { // z-wires
+            fXExp = a_vec3VertexPosition.x - u_vec3Hit1.x;
+            fWeightCurr = fWeight1 * exp(-fXExp * fXExp / fWidthSqr);
+            vecColorMain = ( 1.0 - fWeightCurr ) * vecColorMain + fWeightCurr * vecColorHit;
+            
+            fXExp = a_vec3VertexPosition.x - u_vec3Hit2.x;
+            fWeightCurr = fWeight2 * exp(-fXExp * fXExp / fWidthSqr);
+            vecColorMain = ( 1.0 - fWeightCurr ) * vecColorMain + fWeightCurr * vecColorHit;
+        }
+    }
+    
+    vecColor = vecColorMain;
+    vecTextureCoord = a_vec2TextureCoord;
+    vecPosInTrace = a_vec3VertexPosition;
+}
+</script>
+
+<script language = "javascript">
+var glhMain;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var bOnLight;
+
+var vec3ColorAmb = [0.2, 0.2, 0.2];
+var vec3ColorDir = [1.0, 1.0, 1.0];
+var vec3DirLight = [-0.25, -0.25, -1.0];
+
+var nIsLoading = 0;
+var arrMesh = ["", ""];
+
+var mat4I, mat3I;
+
+var meshbufTrace;
+
+var nTimeLast = 0;
+
+
+function myCreateMesh(strJSON) {
+    var pData = JSON.parse(strJSON);
+    
+    meshbufCurr = new MeshBuffer();
+    
+    meshbufCurr.insertVertexArray(glhMain, pData.vtx, pData.vtx.length / 3);
+    meshbufCurr.insertIndexArray(glhMain, pData.idx, pData.idx.length);
+    meshbufCurr.insertNormalArray(glhMain, pData.nor, pData.nor.length / 3);
+    
+    return meshbufCurr;
+}
+
+
+function myCreateTracePrimitive() {
+    var dSize = 100.0;
+    var dWidth = 0.005;
+    
+    var arrVtx, arrIdx;
+    
+    arrVtx = [
+        -dWidth,  dSize, 0, 
+         dWidth,  dSize, 0, 
+        -dWidth, -dSize, 0, 
+         dWidth,  dSize, 0, 
+        -dWidth, -dSize, 0, 
+         dWidth, -dSize, 0
+    ];
+    
+    arrIdx = [0, 1, 2, 3, 4, 5];
+    
+    meshbufTrace = new MeshBuffer();
+    
+    meshbufTrace.insertVertexArray(glhMain, arrVtx, arrVtx.length / 3);
+    meshbufTrace.insertIndexArray(glhMain,  arrIdx, arrIdx.length);
+    
+    return 0;
+}
+
+
+function myCalcMatrixTrace(dX, dZ, dAngleX, dAngleZ) {
+    var matTrace, matNTrace;
+    
+    matTrace = mat4.create();
+    mat4.identity(matTrace);
+    
+    mat4.translate(matTrace, [dX, 0.0, dZ]);
+    mat4.rotateX(matTrace, dAngleX);
+    mat4.rotateZ(matTrace, dAngleZ);
+    
+    return matTrace;
+}
+
+
+// Putting the matrices for arranging of a given mesh in the 'world'
+function mySetMatrixWorld(matWorld, matNWorld) {
+    glhMain.setUniformMtx4(0, "u_matWorld",  false, matWorld);
+    glhMain.setUniformMtx3(0, "u_matNWorld", false, matNWorld);
+    
+    return 0;
+}
+
+
+function myDrawScene() {
+    var arrColorUniform = [0.0, 0.0, 0.0, 1.0];
+    
+    if ( nIsLoading > 0 ) return;
+    
+    glhMain.initDraw();
+    
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 0.1, 10000.0, pMatrix);
+    
+    // Light
+    if ( bOnLight ) {
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vec3DirLight);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
+    
+    glhMain.setUniformVal3fv(0, "u_vec3Hit1", [0.5, 0.01, 0.3]);
+    glhMain.setUniformVal3fv(0, "u_vec3Hit2", [-0.5, 1.0, -0.8]);
+    
+    // Cube
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    mat4.rotate(mvMatrix, 0.7, [1, 0, 0]);
+    
+    glhMain.setUniformVal1i(0, "u_bIsTrace", false);
+    glhMain.setUniformVal1i(0, "u_bIsWire", false);
+    mySetMatrixWorld(mat4I, mat3I);
+    
+    arrMesh[ 0 ].setUniformColor(glhMain, [0.9, 0.9, 0.9, 1.0]);
+    arrMesh[ 0 ].drawMesh(glhMain, pMatrix, mvMatrix);
+    
+    glhMain.setUniformVal1i(0, "u_bIsWire", true);
+    arrMesh[ 1 ].setUniformColor(glhMain, [0.9, 0.9, 0.0, 1.0]);
+    arrMesh[ 1 ].drawMesh(glhMain, pMatrix, mvMatrix);
+    glhMain.setUniformVal1i(0, "u_bIsWire", false);
+    
+    glhMain.setUniformVal1i(0, "u_bIsTrace", true);
+    mySetMatrixWorld(myCalcMatrixTrace(0.5, 0.3, 0.0, 0.0), mat3I);
+    
+    glhMain.disableLight();
+    meshbufTrace.setUniformColor(glhMain, [1.0, 1.0, 1.0, 1.0]);
+    meshbufTrace.drawMesh(glhMain, pMatrix, mvMatrix);
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow = new Date().getTime();
+    
+    if ( nTimeLast != 0) {
+        var nElapsed = nTimeNow - nTimeLast;
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    window.setTimeout(myDoTick, 1000 / 60);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function mySetupGLHeaderForWireChamber() {
+    var strShaderVtxCode;
+    var strShaderFragCode;
+    
+    var objNext;
+    
+    // Loading the vertex shader code
+    strShaderVtxCode = "";
+    objNext = document.getElementById("vscodeWireChamber").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderVtxCode += objNext.textContent;
+        }
+        
+        objNext = objNext.nextSibling;
+    }
+    
+    glhMain.setShaderCodeVtx(strShaderVtxCode);
+    
+    // Loading the fragment shader code
+    strShaderFragCode = "";
+    objNext = document.getElementById("fscodeWireChamber").firstChild;
+    
+    while ( objNext ) {
+        if ( objNext.nodeType == 3 ) {
+            strShaderFragCode += objNext.textContent;
+        }
+        
+        objNext = objNext.nextSibling;
+    }
+    
+    glhMain.setShaderCodeFrag(strShaderFragCode);
+    
+    return 0;
+}
+
+
+function myLoadJSON(strPath, nIdx) {
+    var requestJSON = new XMLHttpRequest();
+    
+    requestJSON.open("GET", "http://osx04.sscc.uos.ac.kr/html/webgl/wire_chamber/" + strPath);
+    
+    requestJSON.onreadystatechange = function() {
+        if ( requestJSON.readyState == 4 ) {
+            nIsLoading--;
+            arrMesh[ nIdx ] = myCreateMesh(requestJSON.responseText);
+        }
+    };
+    
+    requestJSON.send();
+    
+    return 0;
+}
+
+
+function myLaunchGL() {
+    var canvas = document.getElementById("canvasMain");
+    
+    glhMain = new glHeader();
+    mySetupGLHeaderForWireChamber();
+    glhMain.initGL(canvas);
+    
+    bOnLight = true;
+    
+    nIsLoading = 2;
+    myLoadJSON("case.json", 0);
+    myLoadJSON("wire.json", 1);
+    
+    myCreateTracePrimitive();
+    
+    mat4I = mat4.create();
+    mat4.identity(mat4I);
+    mat3I = mat3.create();
+    mat3.identity(mat3I);
+    
+    myDoTick();
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+<div id = "divDump"></div>
+</body>
+</html>
+
+

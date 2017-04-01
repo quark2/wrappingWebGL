@@ -1,0 +1,197 @@
+<html>
+<head>
+
+<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+
+<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
+
+<script type="text/javascript" src = "HSLtoRGB.js"></script>
+
+<script language = "javascript">
+var glhMain;
+
+var pMatrix  = mat4.create();
+var mvMatrix = mat4.create();
+
+var bOnLight;
+
+var vec3ColorAmb = [0.2, 0.2, 0.2];
+var vec3ColorDir = [1.0, 1.0, 1.0];
+var vec3DirLight = [-0.25, -0.25, -1.0];
+
+var nIsLoading = 0;
+var arrMesh = ["", ""];
+
+var meshbufTrace;
+
+var nTimeLast = 0;
+var fAngle1Cube = 0, fAngle2Cube = 0, fScaleFactorCube = 0, fColorWheel = 0;
+
+
+function myCreateMesh(strJSON) {
+    var pData = JSON.parse(strJSON);
+    
+    meshbufCurr = new MeshBuffer();
+    
+    meshbufCurr.insertVertexArray(glhMain, pData.vtx, pData.vtx.length / 3);
+    meshbufCurr.insertIndexArray(glhMain, pData.idx, pData.idx.length);
+    meshbufCurr.insertNormalArray(glhMain, pData.nor, pData.nor.length / 3);
+    
+    return meshbufCurr;
+}
+
+
+function myCreateTracePrimitive() {
+    var dSize = 100.0;
+    var dWidth = 0.005;
+    
+    var arrVtx, arrIdx;
+    
+    arrVtx = [
+        -dWidth,  dSize, 0, 
+         dWidth,  dSize, 0, 
+        -dWidth, -dSize, 0, 
+         dWidth,  dSize, 0, 
+        -dWidth, -dSize, 0, 
+         dWidth, -dSize, 0
+    ];
+    
+    arrIdx = [0, 1, 2, 3, 4, 5];
+    
+    meshbufTrace = new MeshBuffer();
+    
+    meshbufTrace.insertVertexArray(glhMain, arrVtx, arrVtx.length / 3);
+    meshbufTrace.insertIndexArray(glhMain,  arrIdx, arrIdx.length);
+    
+    return 0;
+}
+
+
+function myCalcMatrixTrace(dX, dZ, dAngleX, dAngleZ) {
+    var matTrace;
+    
+    matTrace = mat4.create();
+    mat4.identity(matTrace);
+    
+    mat4.rotateX(matTrace, dAngleX);
+    mat4.rotateZ(matTrace, dAngleZ);
+    mat4.translate(matTrace, [dX, 0.0, dZ]);
+    
+    return matTrace;
+}
+
+
+function myDrawScene() {
+    var fScale = 1.2 + 0.5 * Math.sin(fScaleFactorCube);
+    var arrColorUniform = [0.0, 0.0, 0.0, 1.0];
+    
+    if ( nIsLoading > 0 ) return;
+    
+    glhMain.initDraw();
+    
+    mat4.perspective(45, glhMain.getViewportWidth() / glhMain.getViewportHeight(), 0.1, 10000.0, pMatrix);
+    
+    // Light
+    if ( bOnLight ) {
+        glhMain.setLightAmbient(vec3ColorAmb);
+        glhMain.setLightDirectional(vec3ColorDir, vec3DirLight);
+        glhMain.enableLight();
+    } else {
+        glhMain.disableLight();
+    }
+    
+    // Cube
+    mat4.identity(mvMatrix);
+    mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    //mat4.rotate(mvMatrix, fAngle1Cube, [1, 1, 1]);
+    mat4.rotate(mvMatrix, 0.7, [1, 0, 0]);
+    //mat4.scale(mvMatrix, [fScale, fScale, fScale]);
+    
+    myHSL2RGB([fColorWheel, 100.0, 50.0], arrColorUniform);
+    arrMesh[ 0 ].setUniformColor(glhMain, [0.9, 0.9, 0.9, 1.0]);
+    arrMesh[ 0 ].drawMesh(glhMain, pMatrix, mvMatrix);
+    
+    myHSL2RGB([fColorWheel, 100.0, 50.0], arrColorUniform);
+    arrMesh[ 1 ].setUniformColor(glhMain, [0.9, 0.9, 0.0, 1.0]);
+    arrMesh[ 1 ].drawMesh(glhMain, pMatrix, mvMatrix);
+    
+    glhMain.disableLight();
+    meshbufTrace.setUniformColor(glhMain, [1.0, 1.0, 1.0, 1.0]);
+    meshbufTrace.drawMesh(glhMain, pMatrix, mvMatrix);
+}
+
+
+function myMakeAnimation() {
+    var nTimeNow = new Date().getTime();
+    
+    if ( nTimeLast != 0) {
+        var nElapsed = nTimeNow - nTimeLast;
+        
+        fAngle1Cube += 0.30 * (nElapsed * Math.PI) / 1000.0;
+        fAngle2Cube += 0.50 * (nElapsed * Math.PI) / 1000.0;
+        fScaleFactorCube += 0.35 * (nElapsed * Math.PI) / 1000.0;
+        fColorWheel += 0.6;
+        
+        if ( fColorWheel > 360.0 ) {
+            fColorWheel -= 360.0;
+        }
+    }
+    
+    nTimeLast = nTimeNow;
+}
+
+
+function myDoTick() {
+    window.setTimeout(myDoTick, 1000 / 60);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myLoadJSON(strPath, nIdx) {
+    var requestJSON = new XMLHttpRequest();
+    
+    requestJSON.open("GET", "http://osx04.sscc.uos.ac.kr/html/webgl/wire_chamber/" + strPath);
+    
+    requestJSON.onreadystatechange = function() {
+        if ( requestJSON.readyState == 4 ) {
+            nIsLoading--;
+            arrMesh[ nIdx ] = myCreateMesh(requestJSON.responseText);
+        }
+    };
+    
+    requestJSON.send();
+    
+    return 0;
+}
+
+
+function myLaunchGL() {
+    var canvas = document.getElementById("canvasMain");
+    
+    glhMain = new glHeader();
+    glhMain.initGL(canvas);
+    
+    bOnLight = true;
+    
+    nIsLoading = 2;
+    myLoadJSON("case.json", 0);
+    myLoadJSON("wire.json", 1);
+    
+    myCreateTracePrimitive();
+    
+    myDoTick();
+}
+</script>
+
+</head>
+
+<body onload = "myLaunchGL();">
+<canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
+This browser does not suppot HTML5. Upgrade it.
+</canvas>
+<div id = "divDump"></div>
+</body>
+</html>
+
+
