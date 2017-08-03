@@ -567,7 +567,7 @@ function myLoadWorldFromJSON(strDataJSON) {
             bufMesh.setUniformColor(glhMain, pData.color_overall);
         }
         
-        if ( "texid" in pData.objs[ i ] && "texcoords" in pData.objs[ i ] ) {
+        if ( "texid" in pData.objs[ i ] && "texcoords" in objPolyData ) {
             var dTexOffsetU, dTexOffsetV;
             var dTexAreaU, dTexAreaV;
             
@@ -1022,8 +1022,8 @@ function myDrawPostEffect() {
     myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
     myDrawAtomOfPostEffect(frameBufferD4,  frameBufferB4,  nDrawMode_Blur);
     myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
-    myDrawAtomOfPostEffect(frameBufferD4,  frameBufferB4,  nDrawMode_Blur);
-    myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
+    //myDrawAtomOfPostEffect(frameBufferD4,  frameBufferB4,  nDrawMode_Blur);
+    //myDrawAtomOfPostEffect(frameBufferB4,  frameBufferD4,  nDrawMode_Blur);
     
     glhMain.bindTextureNull();
     glhMain.initDraw(true);
@@ -1385,7 +1385,7 @@ world : <select id = "inputselWorld" onchange = 'myLoadJSON(this.value);'>
   <option value = "worldmodel_spheres.json">spheres</option>
   <option value = "worldmodel_utah_teapots.json">Utah teapots</option>
   <option value = "worldmodel_stars.json">Stars</option>
-  <option value = "worldmodel_buildings.json" selected>Town</option>
+  <option value = "worldmodel_buildings.json">Town</option>
 </select>&nbsp;&nbsp;
 <label><input type = "checkbox" id = "inputchkboxDopplerEff" value = "1">Doppler effect</label>&nbsp;&nbsp;
 <input type = "button" value = "Fullscreen" onclick = 'mySetFullscreen();'>&nbsp;

@@ -1,0 +1,149 @@
+<html>
+<head>
+<script language = "javascript">
+var canvasDam;
+var canvasTransistor;
+
+var imgDam;
+var imgTransistor;
+
+var fYGate = 3.0;
+
+var strColorWater = "#55EEEE";
+
+var nTimeLast = 0;
+
+
+function myDrawFalledWater() {
+    var i, j;
+    
+    var nX;
+    var nXCurr, nYCurr;
+    
+    var arrLines;
+    
+    canvasDam.fillStyle = strColorWater;
+    canvasDam.fillRect(0, 360 - fYGate, 480, fYGate);
+    
+    canvasDam.strokeStyle = "#FFFFFF";
+    
+    arrLines = [[4, 3, 13], [2, 12, 19], [7, 18, 7]];
+    
+    for ( i = 0 ; i < 10 ; i++ ) {
+        nX = 48 * i + ( ( nTimeLast * 0.3 ) % 48 );
+        
+        for ( j = 0 ; j < arrLines.length ; j++ ) {
+            nXCurr = nX + arrLines[ j ][ 0 ];
+            nYCurr = 360 - fYGate + arrLines[ j ][ 1 ] * fYGate / 20.0;
+            
+            canvasDam.beginPath();
+            canvasDam.moveTo(nXCurr,                      nYCurr);
+            canvasDam.lineTo(nXCurr + arrLines[ j ][ 2 ], nYCurr);
+            canvasDam.stroke();
+        }
+    }
+}
+
+
+function myDrawScene() {
+    var fXGate, fWGate;
+    var fRateFall = 1.5;
+    
+    /////////////////////////////////////////////////////////
+    // Part for dam
+    /////////////////////////////////////////////////////////
+    
+    // Clean up
+    canvasDam.fillStyle = "#FFFFFF";
+    canvasDam.fillRect(0, 0, 480, 360);
+    
+    fXGate = 191;
+    fWGate = 29;
+    
+    // Drawing stored water
+    canvasDam.fillStyle = strColorWater;
+    canvasDam.fillRect(0, 60, fXGate + fWGate, 300);
+    
+    // Drawing falled water
+    myDrawFalledWater(canvasDam);
+    
+    canvasDam.fillStyle = strColorWater;
+    
+    canvasDam.beginPath();
+    canvasDam.moveTo(fXGate + fWGate, 101 - fYGate * fRateFall);
+    canvasDam.lineTo(fXGate + fWGate, 360);
+    canvasDam.lineTo(fXGate + fWGate + 76.0 + fYGate * fRateFall / ( 360.0 - 101.0 ) * 76.0, 360);
+    canvasDam.fill();
+    
+    canvasDam.beginPath();
+    canvasDam.moveTo(fXGate + fWGate, 60);
+    canvasDam.lineTo(fXGate + fWGate, 150);
+    canvasDam.lineTo(fXGate + fWGate + fYGate, 150);
+    canvasDam.fill();
+    
+    // Drawing gate
+    canvasDam.fillStyle = "#555555";
+    canvasDam.fillRect(fXGate, 60 + fYGate, fWGate, 300);
+    
+    // Drawing concretes
+    canvasDam.drawImage(imgDam, -120, 0);
+    
+    /////////////////////////////////////////////////////////
+    // Part for transistor
+    /////////////////////////////////////////////////////////
+    canvasTransistor.drawImage(imgTransistor, 0, 0, 480, 300);
+    
+    return 0;
+}
+
+
+function myMakeAnimation() {
+    var nElapsed;
+    
+    var nTimeNow = new Date().getTime();
+    
+    if ( nTimeLast != 0) {
+        nElapsed = nTimeNow - nTimeLast;
+    }
+    
+    nTimeLast = nTimeNow;
+    
+    fYGate = 20.0;
+    fYGate = 20.0 * 0.5 * ( 1.0 + Math.sin(nTimeNow * 0.01) );
+    
+    return 0;
+}
+
+
+function myDoTick() {
+    window.setTimeout(myDoTick, 1000 / 60);
+    myDrawScene();
+    myMakeAnimation();
+}
+
+
+function myInitProgram() {
+    canvasDam = document.getElementById("canvasDam").getContext("2d");
+    canvasTransistor = document.getElementById("canvasTransistor").getContext("2d");
+    
+    imgDam = new Image();
+    imgDam.src = "dam.png";
+    
+    imgTransistor = new Image();
+    imgTransistor.src = "transistor.png";
+    
+    myDoTick();
+    
+    return 0;
+}
+</script>
+</head>
+<body onload = "myInitProgram()">
+<table border = 0>
+<tr>
+<td><canvas id = "canvasDam" width = 480 height = 360></canvas></td>
+<td><canvas id = "canvasTransistor" width = 480 height = 360></canvas></td>
+</tr>
+</table>
+</body>
+</html>

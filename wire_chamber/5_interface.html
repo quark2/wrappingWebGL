@@ -1,9 +1,9 @@
 <html>
 <head>
 
-<script type="text/javascript" src="../src/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
 
-<script type="text/javascript" src = "../src/gl_wrapper.js"></script>
+<script type="text/javascript" src = "gl_wrapper.js"></script>
 
 <script id = "fscodeWireChamber" type = "x-shader/x-fragment">
 precision mediump float;
@@ -170,6 +170,15 @@ var arrRayMat = [];
 
 var nTimeLast = 0;
 
+var bIsDraging = false;
+var nXDragPrev = 0, nYDragPrev = 0;
+
+var fSensible = 0.003;
+var fXAngleCamera = 0.7, fZAngleCamera = -0.2;
+var fDistCamera = 8.0;
+
+var nIsOnSim = 0;
+
 
 function myCreateMesh(strJSON) {
     var pData = JSON.parse(strJSON);
@@ -289,8 +298,11 @@ function myDrawScene() {
     
     // Setting the camera matrix
     mat4.identity(mvMatrix);
-    mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
-    mat4.rotate(mvMatrix, 0.7, [1, 0, 0]);
+    //mat4.translate(mvMatrix, [0.0, 0.0, -8.0]);
+    //mat4.rotate(mvMatrix, 0.7, [1, 0, 0]);
+    mat4.translate(mvMatrix, [0.0, 0.0, -fDistCamera]);
+    mat4.rotate(mvMatrix, fXAngleCamera, [1, 0, 0]);
+    mat4.rotate(mvMatrix, fZAngleCamera, [0, 1, 0]);
     
     // Setting defalut
     glhMain.setUniformVal1i(0, "u_bIsTrace", false);
@@ -358,6 +370,78 @@ function myMakeAnimation() {
 }
 
 
+function handleEventDragStart(nX, nY, nRelX, nRelY, bIsTouch) {
+    var canvasMain = document.getElementById("canvasMain");
+    
+    var fX, fY;
+    
+    fX = nRelX * 2.0 / canvasMain.width - 1.0;
+    fY = 1.0 - nRelY * 2.0 / canvasMain.height;
+    
+    bIsDraging = true;
+    nXDragPrev = nX;
+    nYDragPrev = nY;
+}
+
+
+function handleEventDragEnd() {
+    bIsDraging = false;
+}
+
+
+function handleEventDraging(nX, nY) {
+    var nXDragCurr, nYDragCurr;
+    
+    if ( !bIsDraging ) {
+        nXDragCurr = nYDragCurr = 0;
+        
+        return;
+    }
+    
+    nXDragCurr = nX;
+    nYDragCurr = nY;
+    
+    fXAngleCamera += ( nYDragCurr - nYDragPrev ) * fSensible;
+    fZAngleCamera += ( nXDragCurr - nXDragPrev ) * fSensible;
+    
+    if ( fXAngleCamera < -Math.PI / 2 * 0.95 ) {
+        fXAngleCamera = -Math.PI / 2 * 0.95;
+    }
+    
+    if ( fXAngleCamera >  Math.PI / 2 * 0.95 ) {
+        fXAngleCamera =  Math.PI / 2 * 0.95;
+    }
+    
+    if ( fZAngleCamera < 0 ) {
+        fZAngleCamera += 2 * Math.PI;
+    }
+    
+    if ( fZAngleCamera > 2 * Math.PI ) {
+        fZAngleCamera -= 2 * Math.PI;
+    }
+    
+    nXDragPrev = nXDragCurr;
+    nYDragPrev = nYDragCurr;
+}
+
+
+function handleEventWheel(nDelta) {
+    fDistCamera -= 0.01 * nDelta;
+    
+    if ( fDistCamera < 1.4 ) {
+        fDistCamera = 1.4;
+        
+        return true;
+    } else if ( fDistCamera > 12.0 ) {
+        fDistCamera = 12.0;
+        
+        return true;
+    }
+    
+    return false;
+}
+
+
 function myDoTick() {
     window.setTimeout(myDoTick, 1000 / 60);
     myDrawScene();
@@ -406,7 +490,7 @@ function mySetupGLHeaderForWireChamber() {
 function myLoadJSON(strPath, nIdx) {
     var requestJSON = new XMLHttpRequest();
     
-    requestJSON.open("GET", "http://osx04.sscc.uos.ac.kr/html/webgl/wire_chamber/" + strPath);
+    requestJSON.open("GET", strPath);
     
     requestJSON.onreadystatechange = function() {
         if ( requestJSON.readyState == 4 ) {
@@ -450,20 +534,166 @@ function myLaunchGL() {
     
     myCreateRay(dX, dZ, dAngleX, dAngleZ);
     
+    // Adding event listeners
+    // The first three are for mouse-draging and the followings are for touch
+    
+    canvasMain.addEventListener("mousedown", function(event) {
+        return handleEventDragStart(event.clientX, event.clientY, 
+            event.pageX - this.offsetLeft, event.pageY - this.offsetTop, false);
+    }, false);
+    
+    document.addEventListener("mouseup", function(event) {
+        return handleEventDragEnd();
+    }, false);
+    
+    document.addEventListener("mousemove", function(event) {
+        return handleEventDraging(event.clientX, event.clientY);
+    }, false);
+    
+    canvasMain.addEventListener("touchstart", function(event) {
+        var objTouch;
+        
+        if ( event.changedTouches.length != 1 ) {
+            return 0;
+        }
+        
+        var objTouch = event.changedTouches[ 0 ];
+        
+        return handleEventDragStart(-objTouch.clientX, -objTouch.clientY, 
+            objTouch.pageX - this.offsetLeft, objTouch.pageY - this.offsetTop, true);
+    }, false);
+    
+    document.addEventListener("touchend", function(event) {
+        return handleEventDragEnd();
+    }, false);
+    
+    document.addEventListener("touchmove", function(event) {
+        var objTouch;
+        
+        if ( event.changedTouches.length != 1 ) {
+            return 0;
+        }
+        
+        objTouch = event.changedTouches[ 0 ];
+        
+        return handleEventDraging(-objTouch.clientX, -objTouch.clientY);
+    }, false);
+    
+    canvasMain.addEventListener("mousewheel", function(event) {
+        handleEventWheel(event.wheelDelta || -event.detail);
+        nIsOnSim = 1;
+        return false;
+    }, false);
+    
+    window.onwheel = function() {
+        if ( nIsOnSim != 0 ) {
+            nIsOnSim = 0;
+            return false;
+        } else {
+            return true;
+        }
+    };
+    
     myDoTick();
+}
+</script>
+
+<script language = "javascript">
+var canvasAval;
+
+var arr2Pos;
+var nNumLayers = 8;
+
+
+function myGenerateLayers() {
+    var i, j;
+    
+    var nNumPs;
+    
+    var fPosPrev;
+    var fDirNext;
+    
+    nNumPs = 2;
+    
+    for ( i = 1 ; i < nNumLayers ; i++ ) {
+        for ( j = 0 ; j < nNumPs ; j++ ) {
+            fPosPrev = Math.floor(j / 2);
+            fDirNext = ( j % 2 == 0 ? -1.0 : 1.0 );
+            
+            
+        }
+        arr2Pos.push([]);
+        
+        nNumPs *= 2;
+    }
+    
+    return 0;
+}
+
+
+function myLaunchAvalanche() {
+    var i;
+    
+    canvasAval = document.getElementById("canvasAval").getContext("2d");
+    
+    arr2Pos = [];
+    
+    for ( i = 0 ; i < nNumLayers ; i++ ) {
+        arr2Pos.push([]);
+    }
+    
+    return 0;
 }
 </script>
 
 </head>
 
-<body onload = "myLaunchGL();">
+<body onload = "myLaunchGL(); myLaunchAvalanche();">
+<h1>Wire chamber</h1>
+<h2>Introduction</h2>
+<p>
+During the 20th century, particle physics had been developed brilliantly.
+Behind this discovery, there was a enomous backup by many of experiments, observing particles.
+But a student might wonder how we physicists can measure such small and small things, even it is smaller than atom.
+One of a familiar method to 'see' particles is using bubble chamber or something like that.
+This apparatus gives highly visualized results.
+But there is a problem; it is so hard to analyse data from this because it gives just a 'picture' of trajectories which is difficult to treat automatically.
+That's why in ealier particle physics many ladies and doctorial students are required; the only way to analyse the data is seeing a lot of lots of pictures by bubble chamber and drawing trajectories and calculating properties by hand.
+This method is obviously too inefficient, and even becomes useless since required statistics is growing and growing.<br>
+<figure><img src = "ladies_in_particle_physics.jpg"><figcaption>Ladies analysing pictures of trajectories of subatomic particles from bubble chamber<br><font size = 2>(<a href = "http://io9.gizmodo.com/5952693/nothing-to-see-here-just-three-ladies-doing-some-hardcore-particle-physics">http://io9.gizmodo.com/5952693/nothing-to-see-here-just-three-ladies-doing-some-hardcore-particle-physics)</a></font></figcaption></figure><br>
+Particle physicists should find more efficient way to detect particles.
+</p>
+
+<h2>Geiger counter; Avalanche effect</h2>
+<figure><img src = "Geiger_gamma_interaction.jpg" width = 50% height = 50%><figcaption>Avalanche in Geiger counter<br><font size = 2>(<a href = "https://en.wikipedia.org/wiki/Geiger_tube">https://en.wikipedia.org/wiki/Geiger_tube</a></font></figcaption></figure><br>
+
+<canvas id = "canvasAval" width = 800 height = 600></canvas>
+
+<h2>Wire chamber</h2>
+<figure><img src = "MWPC_electric_field.png"><figcaption>Electric field of wires; it makes avalanches on each wires when a particle goes through<br><font size = 2>(<a href = "http://wikivisually.com/wiki/Wire_chamber">http://wikivisually.com/wiki/Wire_chamber</a></font></figcaption></figure><br>
+
+<p>
+
+</p>
+
+<p>
+The below program shows a simulation of wire chamber with flying particles.
+These particles, generated randomly, passing through the wire chamber will make avalanches on wires around their way.
+This makes a electronic signal (<font color = "red">becoming red</font>) on wires, and an experiment physicist can read this signal, analysing and tracing what point the particle passes through.
+Note that a particle hits only one wire in the x-direction and one wire in the y-direction, so from this information one can easily guess the hit position.
+Check this out by the below simulation.
+</p>
+
 <canvas id = "canvasMain" style = "border:none; " width = 1024 height = 768>
 This browser does not suppot HTML5. Upgrade it.
-</canvas>
-<div id = "divDump0"></div>
-<div id = "divDump1"></div>
-<div id = "divDump2"></div>
-<div id = "divDump3"></div>
+</canvas><br>
+(drag : rotating, wheel : zoom in/out)
+
+<p>
+When the simulation is zoomed in fully, you can see that there is a gap in z-direction between wires in the x-direction and tat in the y-direction, that is, these wires are not connected with any other at all.
+</p>
+
+<h2>After wire chamber</h2>
 </body>
 </html>
 

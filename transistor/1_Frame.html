@@ -7,9 +7,35 @@ var canvasTransistor;
 var imgDam;
 var imgTransistor;
 
+var fYGate = 0.0;
+
 
 function myDrawScene() {
+    var fXGate, fWGate;
+    
+    var strColorWater = "#55EEEE";
+    
+    /////////////////////////////////////////////////////////
+    // Part for dam
+    /////////////////////////////////////////////////////////
+    
+    fXGate = 304;
+    fWGate = 29;
+    
+    // Drawing water
+    canvasDam.fillStyle = strColorWater;
+    canvasDam.fillRect(0, 70, fXGate + fWGate, 300);
+    
+    // Drawing gate
+    canvasDam.fillStyle = "#555555";
+    canvasDam.fillRect(fXGate, 70 + fYGate, fWGate, 300);
+    
+    // Drawing concretes
     canvasDam.drawImage(imgDam, 0, 0);
+    
+    /////////////////////////////////////////////////////////
+    // Part for transistor
+    /////////////////////////////////////////////////////////
     canvasTransistor.drawImage(imgTransistor, 0, 0, 480, 300);
     
     return 0;
